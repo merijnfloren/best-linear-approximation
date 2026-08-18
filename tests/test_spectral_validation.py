@@ -43,6 +43,8 @@ def f16_special_odd_multisine_data() -> dict[str, DataBLA]:
     [
         (0.25, [7, 15]),
         (0.75, [7]),
+        (1e-10, [7, 15]),
+        (1.0 - 1e-10, [7]),
     ],
 )
 def test_detect_excited_bins_respects_non_default_relative_threshold(
