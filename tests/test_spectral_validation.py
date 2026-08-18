@@ -38,6 +38,32 @@ def f16_special_odd_multisine_data() -> dict[str, DataBLA]:
     return {name: data for name, data in load_f16().items() if "SpecialOddMSine" in name}
 
 
+@pytest.mark.parametrize(
+    ("relative_threshold", "expected_bins"),
+    [
+        (0.25, [7, 15]),
+        (0.75, [7]),
+    ],
+)
+def test_detect_excited_bins_respects_non_default_relative_threshold(
+    relative_threshold: float,
+    expected_bins: list[int],
+) -> None:
+    n_samples = 128
+    spectrum = np.zeros(n_samples // 2 + 1, dtype=complex)
+    spectrum[7] = 10
+    spectrum[15] = 5
+    excitation = np.fft.irfft(spectrum, n=n_samples)[:, np.newaxis]
+
+    excited_bins = detect_excited_bins(
+        excitation,
+        fs=128,
+        relative_threshold=relative_threshold,
+    )
+
+    np.testing.assert_array_equal(excited_bins, expected_bins)
+
+
 def test_detect_excited_bins_excludes_dc_and_nyquist() -> None:
     n_samples = 128
     spectrum = np.zeros(n_samples // 2 + 1, dtype=complex)
@@ -46,35 +72,49 @@ def test_detect_excited_bins_excludes_dc_and_nyquist() -> None:
     spectrum[-1] = 2.5
     excitation = np.fft.irfft(spectrum, n=n_samples)[:, np.newaxis]
 
-    excited_bins = detect_excited_bins(excitation, fs=128, relative_threshold=0.5)
+    excited_bins = detect_excited_bins(
+        excitation,
+        fs=128,
+        relative_threshold=RELATIVE_THRESHOLD_EXCITED_BINS,
+    )
     np.testing.assert_array_equal(excited_bins, [7])
 
 
 def test_detect_excited_bins_excludes_bins_just_below_relative_threshold() -> None:
     n_samples = 128
-    relative_threshold = 0.5
     spectrum = np.zeros(n_samples // 2 + 1, dtype=complex)
     spectrum[7] = 3
-    spectrum[15] = 3 * relative_threshold - 1e-6
+    spectrum[15] = 3 * RELATIVE_THRESHOLD_EXCITED_BINS - 1e-6
     excitation = np.fft.irfft(spectrum, n=n_samples)[:, np.newaxis]
-    excited_bins = detect_excited_bins(excitation, fs=128, relative_threshold=relative_threshold)
+    excited_bins = detect_excited_bins(
+        excitation,
+        fs=128,
+        relative_threshold=RELATIVE_THRESHOLD_EXCITED_BINS,
+    )
     np.testing.assert_array_equal(excited_bins, [7])
 
 
 def test_detect_excited_bins_includes_bins_just_above_relative_threshold() -> None:
     n_samples = 128
-    relative_threshold = 0.5
     spectrum = np.zeros(n_samples // 2 + 1, dtype=complex)
     spectrum[7] = 3
-    spectrum[15] = 3 * relative_threshold + 1e-6
+    spectrum[15] = 3 * RELATIVE_THRESHOLD_EXCITED_BINS + 1e-6
     excitation = np.fft.irfft(spectrum, n=n_samples)[:, np.newaxis]
-    excited_bins = detect_excited_bins(excitation, fs=128, relative_threshold=relative_threshold)
+    excited_bins = detect_excited_bins(
+        excitation,
+        fs=128,
+        relative_threshold=RELATIVE_THRESHOLD_EXCITED_BINS,
+    )
     np.testing.assert_array_equal(excited_bins, [7, 15])
 
 
 def test_detect_excited_bins_raises_when_no_bins_are_excited() -> None:
     with pytest.raises(NoExcitedBinsError):
-        detect_excited_bins(np.ones((64, 2)), fs=100, relative_threshold=0.5)
+        detect_excited_bins(
+            np.ones((64, 2)),
+            fs=100,
+            relative_threshold=RELATIVE_THRESHOLD_EXCITED_BINS,
+        )
 
 
 @pytest.mark.parametrize(

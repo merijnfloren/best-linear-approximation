@@ -57,10 +57,10 @@ def detect_excited_bins(
 
     excited_bins = np.flatnonzero(magnitude_avg > relative_threshold * magnitude_avg.max())
 
-    # Make sure not to return the DC bin
-    excited_bins = excited_bins[excited_bins > 0]
+    # # Exclude the DC bin (standardization should have removed it, but just in case)
+    # excited_bins = excited_bins[excited_bins > 0]
 
-    # Make sure not to return the Nyquist bin (only applies to even-length signals)
+    # Exclude the Nyquist bin (only applies to even-length signals)
     n_samples = excitation.shape[0]
     if n_samples % 2 == 0:
         excited_bins = excited_bins[excited_bins < n_samples // 2]
