@@ -77,6 +77,24 @@ def test_detect_excited_bins_raises_when_no_bins_are_excited() -> None:
         detect_excited_bins(np.ones((64, 2)), fs=100, relative_threshold=0.5)
 
 
+@pytest.mark.parametrize(
+    ("excited_bins", "expected_type"),
+    [
+        (np.array([1, 2, 3, 4]), "full"),
+        (np.array([1, 3, 5]), "odd"),
+        (np.array([2, 4, 6]), "even"),
+        (np.array([1, 5]), "special-odd"),
+        (np.array([2, 6]), "special-even"),
+        (np.array([1, 2, 4]), "special-mixed"),
+    ],
+)
+def test_classify_multisine_type(
+    excited_bins: np.ndarray,
+    expected_type: str,
+) -> None:
+    assert _classify_multisine_type(excited_bins) == expected_type
+
+
 def test_detect_excited_bins_classifies_f16_full_multisines_as_full(
     f16_full_multisine_data: dict[str, DataBLA],
 ) -> None:

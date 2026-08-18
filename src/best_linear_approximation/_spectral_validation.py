@@ -81,18 +81,18 @@ def _classify_multisine_type(excited_bins: NDArray[np.int_]) -> MultisineType:
     """Classify the type of multisine excitation based on the excited bins."""
     first_bin, last_bin = excited_bins[0], excited_bins[-1]
 
-    expected_bins = np.arange(first_bin, last_bin + 1)
-    if np.array_equal(excited_bins, expected_bins):
+    all_bins = np.arange(first_bin, last_bin + 1)
+    if np.array_equal(excited_bins, all_bins):
         return "full"
     elif np.all(excited_bins % 2 == 1):
-        expected_odd_bins = np.arange(first_bin, last_bin + 1, 2)
-        if np.array_equal(excited_bins, expected_odd_bins):
+        all_odd_bins = np.arange(first_bin, last_bin + 1, 2)
+        if np.array_equal(excited_bins, all_odd_bins):
             return "odd"
         else:
             return "special-odd"
     elif np.all(excited_bins % 2 == 0):
-        expected_even_bins = np.arange(first_bin, last_bin + 1, 2)
-        if np.array_equal(excited_bins, expected_even_bins):
+        all_even_bins = np.arange(first_bin, last_bin + 1, 2)
+        if np.array_equal(excited_bins, all_even_bins):
             return "even"
         else:
             return "special-even"
