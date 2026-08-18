@@ -4,7 +4,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from best_linear_approximation._array_shapes import (
+from best_linear_approximation._config import TimeDomainSignal
+from best_linear_approximation._signal_validation import (
     ContractType,
     MatchingAxes,
     SignalContract,
@@ -33,9 +34,9 @@ INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 
 
 def _validate_arguments(
-    r: NDArray[Any],
-    u: NDArray[Any],
-    y: NDArray[Any],
+    r: TimeDomainSignal,
+    u: TimeDomainSignal,
+    y: TimeDomainSignal,
 ) -> ContractType:
     check_zero_sized_axes([r, u, y])
 
@@ -46,11 +47,21 @@ def _validate_arguments(
     return contract_type
 
 
-def known_reference(*, r: NDArray[Any], u: NDArray[Any], y: NDArray[Any]) -> ContractType:
+def known_reference(
+    *,
+    r: TimeDomainSignal,
+    u: TimeDomainSignal,
+    y: TimeDomainSignal,
+) -> ContractType:
     return _validate_arguments(r, u, y)
 
 
-def closed_loop(*, r: NDArray[Any], u: NDArray[Any], y: NDArray[Any]) -> ContractType:
+def closed_loop(
+    *,
+    r: TimeDomainSignal,
+    u: TimeDomainSignal,
+    y: TimeDomainSignal,
+) -> ContractType:
     return known_reference(r=r, u=u, y=y)
 
 
@@ -64,7 +75,7 @@ if __name__ == "__main__":
     print(f"Contract type for known reference: {contract_type}")
 
     r = np.empty((10, 3, 3, 1))  # Example reference signal
-    u = np.empty((10, 3, 3, 1, 1))
+    u = np.empty((10, 3, 3, 2, 1))
     y = np.empty((10, 9, 3, 1, 1))
     contract_type = closed_loop(r=r, u=u, y=y)
     print(f"Contract type for closed loop: {contract_type}")

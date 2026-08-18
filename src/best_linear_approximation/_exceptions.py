@@ -21,6 +21,10 @@ class NonSquareExperimentError(ValueError):
     """Raised when an experiment-layout input is not square in its input axes."""
 
 
+class NoExcitedBinsError(ValueError):
+    """Raised when no excited frequency bins are found in a signal array."""
+    
+
 # Warnings
 
 

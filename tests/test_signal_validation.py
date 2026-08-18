@@ -4,14 +4,6 @@ from collections.abc import Mapping
 import numpy as np
 import pytest
 
-from best_linear_approximation._array_shapes import (
-    ContractType,
-    SignalContract,
-    _axes_match,
-    check_zero_sized_axes,
-    validate_estimation_requirements,
-    validate_signal_contract,
-)
 from best_linear_approximation._exceptions import (
     InsufficientExperimentsError,
     InvalidSignalAxesError,
@@ -21,6 +13,14 @@ from best_linear_approximation._exceptions import (
     RealizationsTruncatedWarning,
     TotalCovarianceUnavailableWarning,
     ZeroSizedAxisError,
+)
+from best_linear_approximation._signal_validation import (
+    ContractType,
+    SignalContract,
+    _axes_match,
+    check_zero_sized_axes,
+    validate_estimation_requirements,
+    validate_signal_contract,
 )
 from best_linear_approximation.robust._direct_methods import (
     KNOWN_INPUT_CONTRACTS,

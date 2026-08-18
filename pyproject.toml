@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "ipykernel>=7.3.0",
     "numpy>=2.5.2",
 ]
 
@@ -17,9 +18,13 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "nonlinear-benchmarks>=1.0.1",
     "pytest>=9.1.1",
-    "ruff>=0.16.2",
 ]
+
+[tool.uv.sources]
+nonlinear-benchmarks = { git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git" }
+
 
 [tool.ruff]
 line-length = 100
