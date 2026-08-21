@@ -1,19 +1,20 @@
 from collections.abc import Mapping
-import math
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from best_linear_approximation._config import TimeDomainSignal
+from best_linear_approximation._argument_preparation import prepare_arguments_direct, warn_for_possible_transients
+from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
+from best_linear_approximation._dataloader import (
+    load_fine_steering_mirror,
+    load_parallel_wiener_hammerstein,
+)
 from best_linear_approximation._signal_validation import (
     ContractType,
     MatchingAxes,
     SignalContract,
     SignalRanks,
-    check_zero_sized_axes,
-    validate_estimation_requirements,
-    validate_signal_contract,
 )
 
 
@@ -50,124 +51,45 @@ NOISY_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 
 
 def known_input(
-    *,
-    u: TimeDomainSignal,
-    y: TimeDomainSignal,
-    fs: float | int,
-    excited_bins: NDArray[np.int_] | float | None = None,
-) -> ContractType:
-    return _validate_arguments_known_input(u, y, fs, excited_bins)
+    u: NDArray[np.floating[Any]],
+    y: NDArray[np.floating[Any]],
+    fs: float,
+    excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+) -> None:
+    u, y, fs, excited_bins = prepare_arguments_direct(u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)
+    
+    n_samples, ny, nu, n_experiments, n_periods = y.shape
+    
+    if n_periods > 1:
+        warn_for_possible_transients(y, max_bin=excited_bins[-1])
 
 
 def noisy_input(
-    *,
-    u: TimeDomainSignal,
-    y: TimeDomainSignal,
+    u: NDArray[np.floating[Any]],
+    y: NDArray[np.floating[Any]],
     fs: float,
-    excited_bins: NDArray[np.int_] | float | None = None,
-) -> ContractType:
-    return _validate_arguments_noisy_input(u, y, fs, excited_bins)
+    excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+) -> None:
 
-
-def _validate_arguments_known_input(
-    u: TimeDomainSignal,
-    y: TimeDomainSignal,
-    fs: float,
-    excited_bins: NDArray[np.int_] | float | None,
-) -> ContractType:
-    return _validate_arguments(u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)
-
-
-def _validate_arguments_noisy_input(
-    u: TimeDomainSignal,
-    y: TimeDomainSignal,
-    fs: float,
-    excited_bins: NDArray[np.int_] | float | None,
-) -> ContractType:
-    return _validate_arguments(u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)
-
-
-
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class SamplingFrequency:
-    value: float
-
-    def __post_init__(self):
-        if not math.isfinite(self.value):
-            msg = f"Sampling frequency must be finite, got {self.value}."
-            raise ValueError(msg)
-        if self.value <= 0:
-            msg = f"Sampling frequency must be strictly positive, got {self.value}."
-            raise ValueError(msg)
-
-
-def _validate_arguments(
-    u: TimeDomainSignal,
-    y: TimeDomainSignal,
-    fs: float,
-    excited_bins: NDArray[np.int_] | float | None,
-    direct_contracts: Mapping[ContractType, SignalContract],
-) -> ContractType:
+    u, y, fs, excited_bins = prepare_arguments_direct(u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)
     
-    # Structural validation
-    check_zero_sized_axes([u, y])
-    contract_type = validate_signal_contract(None, u, y, direct_contracts)
-    validate_estimation_requirements(u, n_periods=y.shape[-1], contract_type=contract_type)
+    n_samples, ny, nu, n_experiments, n_periods = y.shape
     
-    fs_obj = SamplingFrequency(fs)  # Validate sampling frequency
-    
-    if isinstance(excited_bins, np.ndarray):
-        # check if it is a 1D array of strictly possible integers whose size is smaller or equal to u.shape[0]//2+1
-        if excited_bins.ndim != 1 or not np.issubdtype(excited_bins.dtype, np.integer):
-            msg = "excited_bins must be a 1D array of integers."
-            raise ValueError(msg)
-        if np.any(excited_bins <= 0):
-            msg = "excited_bins must contain strictly positive integers."
-            raise ValueError(msg)
-        if excited_bins.size > u.shape[0] // 2 + 1:
-            msg = (
-                f"excited_bins size must be smaller or equal to u.shape[0]//2+1, "
-                f"got {excited_bins.size} > {u.shape[0]//2+1}."
-            )
-            raise ValueError(msg)
-    elif isinstance(excited_bins, float):
-        if not (0 < excited_bins < 1):
-            msg = "excited_bins as a float must be in the range (0, 1)."
-            raise ValueError(msg)
-    elif excited_bins is not None:
-        msg = (
-            f"excited_bins must be a 1D array of strictly positive integers, a float in (0, 1), or None, "
-            f"got {type(excited_bins).__name__} = {excited_bins}."
-        )
-        raise TypeError(msg)
+    if n_periods > 1:
+        warn_for_possible_transients(y, max_bin=excited_bins[-1])
 
-
-    return contract_type
 
 
 
 
 if __name__ == "__main__":
-    # Example usage6
-    u = np.empty((10, 3, 8, 2))
-    y = np.empty((10, 9, 9, 2))
-    fs = 100
-    
-    # fsss = SamplingFrequency(np.nan)
-    # print(f"Sampling frequency: {fsss.value}")
 
-    contract_type = noisy_input(u=u, y=y, fs=fs)
-    print(f"Contract type for noisy input: {contract_type}")
+    data = load_fine_steering_mirror()["train 200mV"]
+    noisy_input(data.u, data.y, data.fs)
 
-    # u = np.empty((10, 3, 9))
-    # y = np.empty((10, 19, 9, 2))
-    # fs = 100.0
-    # excited_bins = np.array([1, 2, 3])
-    # contract_type = known_input(u=u, y=y, fs=fs, excited_bins=excited_bins)
-    # print(f"Contract type for known input: {contract_type}")
+    data = load_parallel_wiener_hammerstein()["ParWH-amp-0"]
+    known_input(np.mean(data.u, axis=-1), data.y, data.fs, data.excited_bins)
 
-    
-    
+
+
+

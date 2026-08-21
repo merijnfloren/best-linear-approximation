@@ -57,3 +57,4 @@ def test_benchmark_loaders_return_expected_number_of_datasets(
     expected_n_datasets: int,
 ) -> None:
     assert len(loader()) == expected_n_datasets
+
