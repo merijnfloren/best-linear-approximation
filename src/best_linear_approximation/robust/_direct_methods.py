@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from best_linear_approximation._argument_preparation import prepare_arguments_direct, warn_for_possible_transients
+from best_linear_approximation._argument_preparation import prepare_arguments, warn_for_possible_transients
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._dataloader import (
     load_fine_steering_mirror,
@@ -15,6 +15,12 @@ from best_linear_approximation._signal_validation import (
     MatchingAxes,
     SignalContract,
     SignalRanks,
+)
+from best_linear_approximation._typing import (
+    ExcitedBins,
+    FrequencyDomainSignal,
+    SamplingFrequencyHz,
+    TimeDomainSignal,
 )
 
 
@@ -56,7 +62,7 @@ def known_input(
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> None:
-    u, y, fs, excited_bins = prepare_arguments_direct(u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)
+    u, y, fs, excited_bins = _prepare_arguments_known_input(u, y, fs, excited_bins)
     
     n_samples, ny, nu, n_experiments, n_periods = y.shape
     
@@ -71,15 +77,32 @@ def noisy_input(
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> None:
 
-    u, y, fs, excited_bins = prepare_arguments_direct(u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)
+    u, y, fs, excited_bins = _prepare_arguments_noisy_input(u, y, fs, excited_bins)
     
     n_samples, ny, nu, n_experiments, n_periods = y.shape
     
     if n_periods > 1:
         warn_for_possible_transients(y, max_bin=excited_bins[-1])
+        
+        
+def _prepare_arguments_known_input(
+    u: NDArray[np.floating[Any]],
+    y: NDArray[np.floating[Any]],
+    fs: float,
+    excited_bins: NDArray[np.int_] | float,
+) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
+    return prepare_arguments(None, u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)[1:]
 
 
-
+def _prepare_arguments_noisy_input(
+    u: NDArray[np.floating[Any]],
+    y: NDArray[np.floating[Any]],
+    fs: float,
+    excited_bins: NDArray[np.int_] | float,
+) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
+    return prepare_arguments(None, u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)[1:]
 
 
 if __name__ == "__main__":

@@ -28,13 +28,87 @@ from best_linear_approximation._typing import (
 MINIMUM_RELATIVE_PERIOD_MISMATCH = 0.025  # keep in sync with docstring
 
 
-def prepare_arguments_direct(
+# def prepare_arguments_direct(
+#     u: NDArray[np.floating[Any]],
+#     y: NDArray[np.floating[Any]],
+#     fs: float,
+#     excited_bins: NDArray[np.int_] | float,
+#     contracts: Mapping[ContractType, SignalContract],
+# ) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+#     """Validate and resolve all arguments.
+
+#     Ensures the signals conform to a supported contract and transforms them into the
+#     canonical five-dimensional experiment layout, verifies the sampling frequency,
+#     and resolves the excited bins.
+
+#     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
+#     used as the threshold to detect the excited bins from ``u``.
+#     """
+#     contract_type = validate_signal_contract(None, u, y, contracts)
+
+#     if contract_type == "realization":
+#         nu = u.shape[1]
+#         u = to_experiment_layout(u, nu)
+#         y = to_experiment_layout(y, nu)
+
+#     u = TimeDomainSignal(u)
+#     y = TimeDomainSignal(y)
+
+#     fs = validate_sampling_frequency(fs)
+#     excited_bins = resolve_excited_bins(excited_bins, u, fs)
+
+#     return u, y, fs, excited_bins
+
+
+# def prepare_arguments_indirect(  # noqa: PLR0913, PLR0917
+#     r: NDArray[np.floating[Any]],
+#     u: NDArray[np.floating[Any]],
+#     y: NDArray[np.floating[Any]],
+#     fs: float,
+#     excited_bins: NDArray[np.int_] | float,
+#     contracts: Mapping[ContractType, SignalContract],
+# ) -> tuple[TimeDomainSignal, TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+#     """Validate and resolve all arguments.
+
+#     Ensures the signals conform to a supported contract and transforms them into the
+#     canonical five-dimensional experiment layout, verifies the sampling frequency,
+#     and resolves the excited bins.
+
+#     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
+#     used as the threshold to detect the excited bins from ``r``.
+#     """
+#     contract_type = validate_signal_contract(r, u, y, contracts)
+
+#     if contract_type == "realization":
+#         nu = u.shape[1]
+#         r = to_experiment_layout(r, nu)
+#         u = to_experiment_layout(u, nu)
+#         y = to_experiment_layout(y, nu)
+
+#     r = TimeDomainSignal(r)
+#     u = TimeDomainSignal(u)
+#     y = TimeDomainSignal(y)
+
+#     fs = validate_sampling_frequency(fs)
+#     excited_bins = resolve_excited_bins(excited_bins, r, fs)
+
+#     return r, u, y, fs, excited_bins
+
+
+def prepare_arguments(  # noqa: PLR0913, PLR0917
+    r: NDArray[np.floating[Any]] | None,
     u: NDArray[np.floating[Any]],
     y: NDArray[np.floating[Any]],
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
-) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+) -> tuple[
+    TimeDomainSignal | None,
+    TimeDomainSignal,
+    TimeDomainSignal,
+    SamplingFrequencyHz,
+    ExcitedBins
+    ]:
     """Validate and resolve all arguments.
 
     Ensures the signals conform to a supported contract and transforms them into the
@@ -42,55 +116,23 @@ def prepare_arguments_direct(
     and resolves the excited bins.
 
     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
-    used as the threshold to detect the excited bins from ``u``.
-    """
-    contract_type = validate_signal_contract(None, u, y, contracts)
-
-    if contract_type == "realization":
-        nu = u.shape[1]
-        u = to_experiment_layout(u, nu)
-        y = to_experiment_layout(y, nu)
-
-    u = TimeDomainSignal(u)
-    y = TimeDomainSignal(y)
-
-    fs = validate_sampling_frequency(fs)
-    excited_bins = resolve_excited_bins(excited_bins, u, fs)
-
-    return u, y, fs, excited_bins
-
-
-def prepare_arguments_indirect(  # noqa: PLR0913, PLR0917
-    r: NDArray[np.floating[Any]],
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
-    fs: float,
-    excited_bins: NDArray[np.int_] | float,
-    contracts: Mapping[ContractType, SignalContract],
-) -> tuple[TimeDomainSignal, TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
-    """Validate and resolve all arguments.
-
-    Ensures the signals conform to a supported contract and transforms them into the
-    canonical five-dimensional experiment layout, verifies the sampling frequency,
-    and resolves the excited bins.
-
-    If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
-    used as the threshold to detect the excited bins from ``r``.
+    interpreted as a threshold for detecting the excited bins, using ``r`` if available
+    and ``u`` otherwise.
     """
     contract_type = validate_signal_contract(r, u, y, contracts)
 
     if contract_type == "realization":
         nu = u.shape[1]
-        r = to_experiment_layout(r, nu)
+        r = to_experiment_layout(r, nu) if r is not None else None
         u = to_experiment_layout(u, nu)
         y = to_experiment_layout(y, nu)
 
-    r = TimeDomainSignal(r)
+    r = TimeDomainSignal(r) if r is not None else None
     u = TimeDomainSignal(u)
     y = TimeDomainSignal(y)
 
     fs = validate_sampling_frequency(fs)
-    excited_bins = resolve_excited_bins(excited_bins, r, fs)
+    excited_bins = resolve_excited_bins(excited_bins, r if r is not None else u, fs)
 
     return r, u, y, fs, excited_bins
 

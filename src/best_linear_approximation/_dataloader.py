@@ -1,6 +1,6 @@
 import math
 from pathlib import Path
-from typing import Generic, NamedTuple, TypeVar, cast
+from typing import NamedTuple, cast
 
 import nonlinear_benchmarks as nlb
 import numpy as np
@@ -11,14 +11,8 @@ from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED
 from best_linear_approximation._spectral_validation import detect_excited_bins
 from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz, TimeDomainSignal
 
-ReferenceSignal = TypeVar(
-    "ReferenceSignal",
-    bound=TimeDomainSignal | None,
-    covariant=True,
-)
 
-
-class DataBLA(NamedTuple, Generic[ReferenceSignal]):
+class DataBLA[ReferenceSignal: TimeDomainSignal | None](NamedTuple):
     r: ReferenceSignal
     u: TimeDomainSignal
     y: TimeDomainSignal
@@ -28,6 +22,14 @@ class DataBLA(NamedTuple, Generic[ReferenceSignal]):
 
 def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[TimeDomainSignal]]:
     """Load selected F16 training datasets.
+
+    This function downloads the F16 benchmark data if it is not already cached
+    locally. The downloaded data is stored in a working directory named
+    ``nonlinear_benchmarks``. The location depends on the operating system:
+
+    - Windows: ``%LOCALAPPDATA%/nonlinear_benchmarks/``
+    - Unix-like systems: ``~/.nonlinear_benchmarks/``
+    - macOS: ``~/Library/Application Support/nonlinear_benchmarks/``
 
     Signals are reshaped to ``(n_samples, n_channels, n_realizations, n_periods)``.
     Returns the sampling frequency and detected excited frequency bins for each
@@ -115,6 +117,14 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[TimeDomain
 def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
     """Load Fine Steering Mirror training datasets.
 
+    This function downloads the Fine Steering Mirror benchmark data if it is not
+    already cached locally. The downloaded data is stored in a working directory
+    named ``nonlinear_benchmarks``. The location depends on the operating system:
+
+    - Windows: ``%LOCALAPPDATA%/nonlinear_benchmarks/``
+    - Unix-like systems: ``~/.nonlinear_benchmarks/``
+    - macOS: ``~/Library/Application Support/nonlinear_benchmarks/``
+
     Signals already have shape ``(n_samples, n_channels, n_realizations, n_periods)``.
     Returns the sampling frequency and excited frequency bins for each dataset.
     Reference signals are unavailable.
@@ -151,6 +161,14 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
 
 def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
     """Load Parallel Wiener-Hammerstein training datasets.
+
+    This function downloads the Parallel Wiener-Hammerstein benchmark data if it
+    is not already cached locally. The downloaded data is stored in a working directory
+    named ``nonlinear_benchmarks``. The location depends on the operating system:
+
+    - Windows: ``%LOCALAPPDATA%/nonlinear_benchmarks/``
+    - Unix-like systems: ``~/.nonlinear_benchmarks/``
+    - macOS: ``~/Library/Application Support/nonlinear_benchmarks/``
 
     Signals are grouped by amplitude level and reshaped to
     ``(n_samples, n_channels, n_realizations, n_periods)``. Returns the
@@ -204,6 +222,14 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
 
 def load_silverbox() -> dict[str, DataBLA[None]]:
     """Load Silverbox training data.
+
+    This function downloads the Silverbox benchmark data if it is not already
+    cached locally. The downloaded data is stored in a working directory named
+    ``nonlinear_benchmarks``. The location depends on the operating system:
+
+    - Windows: ``%LOCALAPPDATA%/nonlinear_benchmarks/``
+    - Unix-like systems: ``~/.nonlinear_benchmarks/``
+    - macOS: ``~/Library/Application Support/nonlinear_benchmarks/``
 
     Signals are split and reshaped to ``(n_samples, n_channels, n_realizations, n_periods)``.
     Returns the sampling frequency and known excited frequency bins.
