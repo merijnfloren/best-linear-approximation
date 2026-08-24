@@ -48,29 +48,3 @@ def to_experiment_layout(
     signal = signal.reshape(*signal.shape[:2], nu, n_experiments, *signal.shape[3:], order="F")
 
     return signal if signal.ndim == CANONICAL_SIGNAL_NDIM else signal[..., None]
-
-
-# def to_realization_layout(
-#     signal: TimeDomainSignal,
-# ) -> TimeDomainSignal:
-#     """Convert a time-domain signal from experiment layout to realization layout.
-
-#     Transforms a signal of shape ``(n_points, n_channels, nu, n_experiments, ...)``
-#     into one of shape ``(n_points, n_channels, n_realizations, ...)`` by merging
-#     the experiment and input axes using column-major ordering.
-#     """
-#     if signal.ndim < 4:
-#         msg = f"Expected a signal with at least 4 dimensions, got {signal.ndim}D."
-#         raise InvalidSignalRanksError(msg)
-
-#     return signal.reshape(*signal.shape[:2], -1, *signal.shape[4:], order="F")
-
-
-# def move_matrix_axes_to_end(array: NDArray[Any]) -> NDArray[Any]:
-#     """Transform an ``(n, n_rows, n_cols, ...)`` array into ``(n, ..., n_rows, n_cols)``."""
-#     minimum_rank = 3
-#     if array.ndim < minimum_rank:
-#         msg = f"Expected an array with at least {minimum_rank} dimensions, got {array.ndim}."
-#         raise InvalidSignalRanksError(msg)
-
-#     return np.moveaxis(array, (1, 2), (-2, -1))

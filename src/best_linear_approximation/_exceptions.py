@@ -17,32 +17,24 @@ class NoExcitedBinsError(ValueError):
     """Raised when no excited frequency bins are found in a signal array."""
 
 
-# class NonSquareExperimentError(ValueError):
-#     """Raised when an experiment-layout input is not square in its input axes."""
-
-
-# class NotEnoughPeriodsError(ValueError):
-#     """Raised when the data does not contain enough periods for transient detection."""
-
-
-# class ZeroSizedAxisError(ValueError):
-#     """Raised when a signal array contains an axis with size zero."""
-
-
 # Warnings
 
 
-# class NoiseCovarianceUnavailableWarning(UserWarning):
-#     """Warn that noise covariance cannot be estimated from one period."""
+class NoiseCovarianceUnavailableWarning(UserWarning):
+    """Warn that noise covariance cannot be estimated from one period."""
+
+
+class PossibleMultiAmplitudeWarning(UserWarning):
+    """Warn that excitation data may contain multiple amplitude levels."""
 
 
 class PossibleTransientWarning(UserWarning):
-    """Warn that the output may not have reached steady state."""
+    """Warn that the output data may not have reached steady state."""
 
 
 class RealizationsTruncatedWarning(UserWarning):
     """Warn that trailing realizations will be discarded before estimation."""
 
 
-# class TotalCovarianceUnavailableWarning(UserWarning):
-#     """Warn that total covariance cannot be estimated from one experiment."""
+class TotalCovarianceUnavailableWarning(UserWarning):
+    """Warn that total covariance cannot be estimated from one experiment."""

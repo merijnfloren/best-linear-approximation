@@ -38,51 +38,6 @@ def check_for_zero_sized_axes(arrays: Iterable[TimeDomainSignal]) -> None:
             raise ValueError(msg)
 
 
-# def validate_estimation_requirements(
-#     u: TimeDomainSignal, n_periods: int, contract_type: ContractType,
-# ) -> None:
-#     """Validate that the data supports the requested frequency-response estimates.
-
-#     Raises a ValueError when a frequency response cannot be estimated. Warns when
-#     there are too few experiments or periods to estimate uncertainty terms.
-#     """
-#     if contract_type == "realization":
-#         nu, n_realizations = u.shape[1], u.shape[2]
-#         n_experiments = n_realizations // nu
-
-#         if n_experiments < 1:
-#             msg = (
-#                 f"There must be at least {nu} independent realizations to estimate the "
-#                 f"frequency response, but only {n_realizations} realizations were provided."
-#             )
-#             raise InsufficientExperimentsError(msg)
-
-#         if n_experiments == 1:
-#             msg = (
-#                 "Only a single experiment (n_experiment = n_realizations // nu == 1) is "
-#                 "provided, so the total covariance (noise plus nonlinear distortions) "
-#                 "cannot be estimated."
-#             )
-#             warnings.warn(msg, TotalCovarianceUnavailableWarning, stacklevel=2)
-
-#     else:
-#         if u.shape[1] != u.shape[2]:
-#             msg = f"u must have the same size along axes 1 and 2, got u.shape={u.shape}."
-#             raise NonSquareExperimentError(msg)
-
-#         n_experiments = u.shape[3]
-#         if n_experiments == 1:
-#             msg = (
-#                 "Only a single experiment is provided, so the total covariance "
-#                 "(noise plus nonlinear distortions) cannot be estimated."
-#             )
-#             warnings.warn(msg, TotalCovarianceUnavailableWarning, stacklevel=2)
-
-#     if n_periods == 1:
-#         msg = "Only a single period is provided, so the noise covariance cannot be estimated."
-#         warnings.warn(msg, NoiseCovarianceUnavailableWarning, stacklevel=2)
-
-
 def validate_signal_contract(
     r: NDArray[np.floating[Any]] | None,
     u: NDArray[np.floating[Any]],

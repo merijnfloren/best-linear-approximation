@@ -22,7 +22,6 @@ F16_FULL_MULTISINE_MAX_EXCITED_FREQUENCY_HZ = 15
 F16_SPECIAL_ODD_MULTISINE_MIN_EXCITED_FREQUENCY_HZ = 1
 F16_SPECIAL_ODD_MULTISINE_MAX_EXCITED_FREQUENCY_HZ = 60
 F16_MULTISINE_FREQUENCY_RELATIVE_TOLERANCE = 0.01
-VALID_SAMPLING_FREQUENCY_HZ = 100.0
 
 
 @pytest.fixture(scope="module")
@@ -143,9 +142,7 @@ def test_detect_excited_bins_classifies_f16_full_multisines_as_full(
     for data in f16_full_multisine_data.values():
         assert data.r is not None
         detected_bins = detect_excited_bins(
-            data.r,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.r, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         assert _classify_multisine_type(detected_bins) == "full"
 
@@ -157,9 +154,7 @@ def test_detect_excited_bins_finds_f16_full_multisines_between_2_and_15_hz(
     for data in f16_full_multisine_data.values():
         assert data.r is not None
         detected_bins = detect_excited_bins(
-            data.r,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.r, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         f_min = detected_bins[0] * data.fs / data.u.shape[0]
         f_max = detected_bins[-1] * data.fs / data.u.shape[0]
@@ -183,9 +178,7 @@ def test_detect_excited_bins_classifies_f16_special_odd_multisines_as_special_od
     for data in f16_special_odd_multisine_data.values():
         assert data.r is not None
         detected_bins = detect_excited_bins(
-            data.r,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.r, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         assert _classify_multisine_type(detected_bins) == "special-odd"
 
@@ -197,9 +190,7 @@ def test_detect_excited_bins_finds_f16_special_odd_multisines_between_1_and_60_h
     for data in f16_special_odd_multisine_data.values():
         assert data.r is not None
         detected_bins = detect_excited_bins(
-            data.r,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.r, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         f_min = detected_bins[0] * data.fs / data.u.shape[0]
         f_max = detected_bins[-1] * data.fs / data.u.shape[0]
@@ -219,9 +210,7 @@ def test_detect_excited_bins_finds_f16_special_odd_multisines_between_1_and_60_h
 def test_detect_excited_bins_matches_fine_steering_mirror_paper_bins() -> None:
     for data in load_fine_steering_mirror().values():
         detected_bins = detect_excited_bins(
-            data.u,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.u, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         bins_from_paper = data.excited_bins
 
@@ -229,14 +218,12 @@ def test_detect_excited_bins_matches_fine_steering_mirror_paper_bins() -> None:
 
 
 def test_detect_excited_bins_matches_silverbox_paper_bins() -> None:
-    silverbox_data = next(iter(load_silverbox().values()))
+    data = next(iter(load_silverbox().values()))
 
     detected_bins = detect_excited_bins(
-        silverbox_data.u,
-        silverbox_data.fs,
-        DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+        data.u, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     )
-    bins_from_paper = silverbox_data.excited_bins
+    bins_from_paper = data.excited_bins
 
     np.testing.assert_array_equal(detected_bins, bins_from_paper)
 
@@ -246,9 +233,7 @@ def test_detect_excited_bins_finds_parallel_wiener_hammerstein_below_20_khz(
 ) -> None:
     for data in parallel_wiener_hammerstein_data.values():
         detected_bins = detect_excited_bins(
-            data.u,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.u, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         f_max = detected_bins[-1] * data.fs / data.u.shape[0]
         assert f_max <= PARALLEL_WIENER_HAMMERSTEIN_MAX_EXCITED_FREQUENCY_HZ
@@ -259,9 +244,7 @@ def test_detect_excited_bins_classifies_parallel_wiener_hammerstein_as_full(
 ) -> None:
     for data in parallel_wiener_hammerstein_data.values():
         detected_bins = detect_excited_bins(
-            data.u,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.u, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         assert _classify_multisine_type(detected_bins) == "full"
 
@@ -271,14 +254,10 @@ def test_detect_excited_bins_is_consistent_for_parallel_wiener_hammerstein(
 ) -> None:
     first_data = next(iter(parallel_wiener_hammerstein_data.values()))
     first_detected_bins = detect_excited_bins(
-        first_data.u,
-        first_data.fs,
-        DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+        first_data.u, first_data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     )
     for data in parallel_wiener_hammerstein_data.values():
         detected_bins = detect_excited_bins(
-            data.u,
-            data.fs,
-            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            data.u, data.fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
         )
         np.testing.assert_array_equal(detected_bins, first_detected_bins)
