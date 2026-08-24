@@ -119,7 +119,7 @@ def test_warn_if_output_spectra_mismatch_distinguishes_f16_data() -> None:
     assert not all(steady_state_flags)
 
 
-def test_warn_if_output_spectra_mismatch_accepts_all_wiener_hammerstein_data() -> None:
+def test_warn_if_output_spectra_mismatch_accepts_parallel_wiener_hammerstein_data() -> None:
     datasets = load_parallel_wiener_hammerstein()
     for data in datasets.values():
         with warnings.catch_warnings():
@@ -171,7 +171,7 @@ def test_warn_if_excitation_amplitudes_mismatch_flags_f16_amplitude_levels() -> 
         _warn_if_excitation_amplitudes_mismatch(signal, level2.excited_bins)
 
 
-def test_warn_if_excitation_amplitudes_mismatch_accepts_all_wiener_hammerstein_data() -> None:
+def test_warn_if_excitation_amplitudes_mismatch_accepts_parallel_wiener_hammerstein_data() -> None:
     datasets = load_parallel_wiener_hammerstein()
     for data in datasets.values():
         signal = TimeDomainSignal(to_experiment_layout(data.u, nu=1))

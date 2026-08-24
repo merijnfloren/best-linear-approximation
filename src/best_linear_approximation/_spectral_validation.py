@@ -1,11 +1,11 @@
 from numbers import Real
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import NoExcitedBinsError
-from best_linear_approximation._misc import TimeDomainSignal, standardize_channels
+from best_linear_approximation._misc import standardize_channels
 from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz
 
 MultisineType = Literal["full", "odd", "even", "special-odd", "special-even", "special-mixed"]
@@ -34,7 +34,7 @@ def validate_sampling_frequency(fs: float) -> SamplingFrequencyHz:
 
 def resolve_excited_bins(
     excited_bins: NDArray[np.int_] | float,
-    signal: TimeDomainSignal,
+    signal: NDArray[np.floating[Any]],
     fs: SamplingFrequencyHz,
 ) -> ExcitedBins:
     """Validate and resolve the supplied excited bins.
@@ -90,7 +90,7 @@ def resolve_excited_bins(
 
 
 def detect_excited_bins(
-    signal: TimeDomainSignal,
+    signal: NDArray[np.floating[Any]],
     fs: SamplingFrequencyHz,
     relative_threshold: float,
     *,
@@ -106,9 +106,10 @@ def detect_excited_bins(
 
     Parameters
     ----------
-    signal : TimeDomainSignal, shape ``(n_samples, n_channels, ...)``
-        Real-valued time-domain input ``u`` or reference signal ``r``.
-        The latter is preferred because it is typically cleaner.
+    signal : NDArray[np.floating[Any]]
+        Real-valued time-domain input ``u`` or reference signal ``r`` with shape
+        ``(n_samples, n_channels, ...)``. Prefer ``r`` when available, as it typically
+        has a higher signal-to-noise ratio.
     fs : SamplingFrequencyHz
         Sampling frequency in Hz.
     relative_threshold : float
@@ -199,8 +200,7 @@ def _print_excited_bins_summary(
 
     if multisine_type == "full":
         summary = (
-            f"{summary_prefix} every bin in that interval is excited "
-            f"({multisine_type} multisine)."
+            f"{summary_prefix} every bin in that interval is excited ({multisine_type} multisine)."
         )
     elif multisine_type == "odd":
         summary = (

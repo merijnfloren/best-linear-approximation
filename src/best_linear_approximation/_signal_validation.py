@@ -5,13 +5,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import InvalidSignalAxesError, InvalidSignalRanksError
-from best_linear_approximation._typing import TimeDomainSignal
 
 ContractType = Literal["realization", "experiment"]
 SignalName = Literal["r", "u", "y"]
-
-
-CANONICAL_SIGNAL_NDIM = 5
 
 
 class SignalRanks(NamedTuple):
@@ -30,7 +26,9 @@ class SignalContract(NamedTuple):
     matching_axes: tuple[MatchingAxes, ...]
 
 
-def check_for_zero_sized_axes(arrays: Iterable[TimeDomainSignal]) -> None:
+def check_for_zero_sized_axes(
+    arrays: Iterable[NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]]],
+) -> None:
     """Raise a ``ValueError`` if any array has a zero-sized axis."""
     for array in arrays:
         if any(axis == 0 for axis in array.shape):
@@ -46,12 +44,9 @@ def validate_signal_contract(
 ) -> ContractType:
     """Validate that the signals have no zero-sized axes and conform to a supported contract."""
     # Create a mapping of signal names to their corresponding arrays
-    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {
-        "u": TimeDomainSignal(u),
-        "y": TimeDomainSignal(y),
-    }
+    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {"u": u, "y": y}
     if r is not None:
-        arrays_by_signal["r"] = TimeDomainSignal(r)
+        arrays_by_signal["r"] = r
 
     check_for_zero_sized_axes(arrays_by_signal.values())
 
@@ -74,15 +69,16 @@ def validate_signal_contract(
 
 
 def _validate_matching_axes(
-    arrays_by_signal: Mapping[SignalName, TimeDomainSignal],
+    arrays_by_signal: Mapping[
+        SignalName, NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
+    ],
     contract: SignalContract,
 ) -> None:
     for requirement in contract.matching_axes:
         arrays = [arrays_by_signal[name] for name in requirement.signals]
         if not _axes_match(arrays, requirement.axes):
             shapes_by_signal = {
-                name: array.shape
-                for name, array in zip(requirement.signals, arrays, strict=True)
+                name: array.shape for name, array in zip(requirement.signals, arrays, strict=True)
             }
             msg = (
                 f"Signals {requirement.signals} must have equal sizes "
@@ -91,7 +87,10 @@ def _validate_matching_axes(
             raise InvalidSignalAxesError(msg)
 
 
-def _axes_match(arrays: Sequence[TimeDomainSignal], axis: int | tuple[int, ...]) -> bool:
+def _axes_match(
+    arrays: Sequence[NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]]],
+    axis: int | tuple[int, ...],
+) -> bool:
     """Check whether all arrays have equal sizes along the selected axis or axes.
 
     Arrays may have different numbers of dimensions. Each selected axis is

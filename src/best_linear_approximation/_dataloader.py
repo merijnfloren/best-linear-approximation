@@ -1,26 +1,27 @@
 import math
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 import nonlinear_benchmarks as nlb
 import numpy as np
 from nonlinear_benchmarks.utilities import Input_output_data, cashed_download
+from numpy.typing import NDArray
 from scipy.io import loadmat
 
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._spectral_validation import detect_excited_bins
-from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz, TimeDomainSignal
+from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz
 
 
-class DataBLA[ReferenceSignal: TimeDomainSignal | None](NamedTuple):
+class DataBLA[ReferenceSignal: NDArray[np.floating[Any]] | None](NamedTuple):
     r: ReferenceSignal
-    u: TimeDomainSignal
-    y: TimeDomainSignal
+    u: NDArray[np.floating[Any]]
+    y: NDArray[np.floating[Any]]
     fs: SamplingFrequencyHz
     excited_bins: ExcitedBins
 
 
-def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[TimeDomainSignal]]:
+def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[NDArray[np.floating[Any]]]]:
     """Load selected F16 training datasets.
 
     This function downloads the F16 benchmark data if it is not already cached
@@ -66,7 +67,7 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[TimeDomain
     save_dir = Path(save_dir) / "F16GVT_Files" / "BenchmarkData"
 
     matfiles = list(Path(save_dir).glob("*.mat"))
-    bla_data: dict[str, DataBLA[TimeDomainSignal]] = {}
+    bla_data: dict[str, DataBLA[NDArray[np.floating[Any]]]] = {}
     for file in sorted(matfiles):
         name = file.name
         if ("FullMSine" in name or "SpecialOddMSine" in name) and "Validation" not in name:
@@ -100,13 +101,12 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[TimeDomain
                 u = u[:, :, :, 1:]
                 y = y[:, :, :, 1:]
 
-            r = TimeDomainSignal(r)
-            u = TimeDomainSignal(u)
-            y = TimeDomainSignal(y)
-
             # Detect excited bins from the cleaner reference signal
             excited_bins = detect_excited_bins(
-                r, fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS, print_summary=False,
+                r,
+                fs,
+                DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+                print_summary=False,
             )
 
             bla_data[name] = DataBLA(r=r, u=u, y=y, fs=fs, excited_bins=excited_bins)
@@ -192,20 +192,31 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
     bla_data: dict[str, DataBLA[None]] = {}
     for amplitude in amplitudes:
         nlb_data_per_amplitude = [
-            data for data in nlb_data
+            data
+            for data in nlb_data
             for phase in range(n_realizations)
             if data.name == f"Est-phase-{phase}-amp-{amplitude}"
         ]
-        u = np.array(
-            [data.u for data in nlb_data_per_amplitude],
-        ).reshape(n_realizations, nu, n_samples, n_periods).transpose(2, 1, 0, 3)
-        y = np.array(
-            [data.y for data in nlb_data_per_amplitude],
-        ).reshape(n_realizations, ny, n_samples, n_periods).transpose(2, 1, 0, 3)
+        u = (
+            np.array(
+                [data.u for data in nlb_data_per_amplitude],
+            )
+            .reshape(n_realizations, nu, n_samples, n_periods)
+            .transpose(2, 1, 0, 3)
+        )
+        y = (
+            np.array(
+                [data.y for data in nlb_data_per_amplitude],
+            )
+            .reshape(n_realizations, ny, n_samples, n_periods)
+            .transpose(2, 1, 0, 3)
+        )
 
-        u, y = TimeDomainSignal(u), TimeDomainSignal(y)
         excited_bins = detect_excited_bins(
-            u, fs, DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS, print_summary=False,
+            u,
+            fs,
+            DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
+            print_summary=False,
         )
 
         name = f"ParWH-amp-{amplitude}"
@@ -274,7 +285,7 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
         u = u[n_samples:]
         y = y[n_samples:]
 
-    u = TimeDomainSignal(u_matrix.reshape(n_samples, nu, n_realizations, n_periods))
-    y = TimeDomainSignal(y_matrix.reshape(n_samples, ny, n_realizations, n_periods))
+    u = u_matrix.reshape(n_samples, nu, n_realizations, n_periods)
+    y = y_matrix.reshape(n_samples, ny, n_realizations, n_periods)
 
     return {nlb_data.name: DataBLA(r=None, u=u, y=y, fs=fs, excited_bins=excited_bins)}

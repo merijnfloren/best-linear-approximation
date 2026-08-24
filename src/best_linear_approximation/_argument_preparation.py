@@ -24,7 +24,6 @@ from best_linear_approximation._spectral_validation import (
 )
 from best_linear_approximation._typing import (
     ExcitedBins,
-    FrequencyDomainSignal,
     SamplingFrequencyHz,
     TimeDomainSignal,
 )
@@ -81,7 +80,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     TimeDomainSignal,
     SamplingFrequencyHz,
     ExcitedBins,
-    ]:
+]:
     """Validate and resolve all arguments.
 
     Ensures the signals conform to a supported contract and transforms them into the
@@ -125,7 +124,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     return r, u, y, fs, excited_bins
 
 
-def _warn_if_output_spectra_mismatch(y: TimeDomainSignal, max_bin: int) -> None:
+def _warn_if_output_spectra_mismatch(y: NDArray[np.floating[Any]], max_bin: int) -> None:
     """Warn when the aggregate spectral mismatch between adjacent periods exceeds 2.5%.
 
     Requires ``n_periods > 1``.
@@ -143,8 +142,8 @@ def _warn_if_output_spectra_mismatch(y: TimeDomainSignal, max_bin: int) -> None:
 
     stop_bin = max_bin + 1
     spectrum = np.fft.rfft(y, axis=0)[:stop_bin]
-    later_spectrum = FrequencyDomainSignal(spectrum[..., 1:])
-    spectral_difference = FrequencyDomainSignal(later_spectrum - spectrum[..., :-1])
+    later_spectrum = spectrum[..., 1:]
+    spectral_difference = later_spectrum - spectrum[..., :-1]
 
     reduction_axis = tuple(range(y.ndim - 1))  # all axes except the last (period) axis
     difference_rms = rms(spectral_difference, axis=reduction_axis)
@@ -185,7 +184,7 @@ def _warn_if_output_spectra_mismatch(y: TimeDomainSignal, max_bin: int) -> None:
 
 
 def _warn_if_excitation_amplitudes_mismatch(
-    signal: TimeDomainSignal,
+    signal: NDArray[np.floating[Any]],
     excited_bins: ExcitedBins,
 ) -> None:
     """Warn when adjacent realization magnitude spectra differ by more than 2.5%.
@@ -208,14 +207,16 @@ def _warn_if_excitation_amplitudes_mismatch(
     spectrum = np.fft.rfft(signal, axis=0)[excited_bins]
     n_excited_freqs = excited_bins.size
     realization_spectrum = spectrum.reshape(
-        n_excited_freqs, n_channels, n_realizations, n_periods, order="F",
+        n_excited_freqs,
+        n_channels,
+        n_realizations,
+        n_periods,
+        order="F",
     )
     realization_magnitude_spectrum = np.abs(realization_spectrum)
 
-    later_magnitude_spectrum = FrequencyDomainSignal(realization_magnitude_spectrum[..., 1:, :])
-    spectral_difference = FrequencyDomainSignal(
-        later_magnitude_spectrum - realization_magnitude_spectrum[..., :-1, :],
-    )
+    later_magnitude_spectrum = realization_magnitude_spectrum[..., 1:, :]
+    spectral_difference = later_magnitude_spectrum - realization_magnitude_spectrum[..., :-1, :]
 
     reduction_axes = (0, 1, 3)
     difference_rms = rms(spectral_difference, axis=reduction_axes)
@@ -255,12 +256,13 @@ def _warn_if_excitation_amplitudes_mismatch(
 
 
 def _warn_noise_covariance_unavailable() -> None:
-        msg = "Only a single period is provided, so the noise covariance cannot be estimated."
-        warnings.warn(msg, NoiseCovarianceUnavailableWarning, stacklevel=2)
+    msg = "Only a single period is provided, so the noise covariance cannot be estimated."
+    warnings.warn(msg, NoiseCovarianceUnavailableWarning, stacklevel=2)
+
 
 def _warn_total_covariance_unavailable() -> None:
-        msg = (
-            "Only a single experiment is provided, so the total covariance "
-            "(noise plus nonlinear distortions) cannot be estimated."
-        )
-        warnings.warn(msg, TotalCovarianceUnavailableWarning, stacklevel=2)
+    msg = (
+        "Only a single experiment is provided, so the total covariance "
+        "(noise plus nonlinear distortions) cannot be estimated."
+    )
+    warnings.warn(msg, TotalCovarianceUnavailableWarning, stacklevel=2)

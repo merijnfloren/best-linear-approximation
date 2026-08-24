@@ -10,6 +10,7 @@ from best_linear_approximation._exceptions import (
 )
 
 CANONICAL_SIGNAL_NDIM = 5
+MINIMUM_SIGNAL_NDIM = 3
 
 
 def to_experiment_layout(
@@ -48,3 +49,18 @@ def to_experiment_layout(
     signal = signal.reshape(*signal.shape[:2], nu, n_experiments, *signal.shape[3:], order="F")
 
     return signal if signal.ndim == CANONICAL_SIGNAL_NDIM else signal[..., None]
+
+
+def move_matrix_axes_to_end(signal: NDArray[Any]) -> NDArray[Any]:
+    """Move axes 1 and 2 to the final two positions.
+
+    Transforms an array with shape ``(n_leading, n_rows, n_cols, ...)`` into
+    one with shape ``(n_leading, ..., n_rows, n_cols)``.
+    """
+    if signal.ndim < MINIMUM_SIGNAL_NDIM:
+        msg = (
+            f"Expected a signal with at least {MINIMUM_SIGNAL_NDIM} dimensions, got {signal.ndim}."
+        )
+        raise ValueError(msg)
+
+    return np.moveaxis(signal, (1, 2), (-2, -1))
