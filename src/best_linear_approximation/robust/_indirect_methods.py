@@ -10,22 +10,26 @@ from best_linear_approximation._signal_validation import (
     ContractType,
     MatchingAxes,
     SignalContract,
+    SignalName,
     SignalRanks,
 )
 
 INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
-    "realization": SignalContract(
+    ContractType.REALIZATION: SignalContract(
         ranks=SignalRanks(r=3, u=4, y=4),
         matching_axes=(
-            MatchingAxes(signals=("r", "u"), axes=(0, 1, 2)),
-            MatchingAxes(signals=("u", "y"), axes=(0, 2, 3)),
+            MatchingAxes(signals=(SignalName.REFERENCE, SignalName.INPUT), axes=(0, 1, 2)),
+            MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2, 3)),
         ),
     ),
-    "experiment": SignalContract(
+    ContractType.EXPERIMENT: SignalContract(
         ranks=SignalRanks(r=4, u=5, y=5),
         matching_axes=(
-            MatchingAxes(signals=("r", "u"), axes=(0, 1, 2, 3)),
-            MatchingAxes(signals=("u", "y"), axes=(0, 2, 3, 4)),
+            MatchingAxes(
+                signals=(SignalName.REFERENCE, SignalName.INPUT),
+                axes=(0, 1, 2, 3),
+            ),
+            MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2, 3, 4)),
         ),
     ),
 }

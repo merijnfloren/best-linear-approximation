@@ -1,13 +1,26 @@
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Literal, NamedTuple
+from enum import StrEnum
+from typing import Any, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import InvalidSignalAxesError, InvalidSignalRanksError
 
-ContractType = Literal["realization", "experiment"]
-SignalName = Literal["r", "u", "y"]
+
+class ContractType(StrEnum):
+    """Supported signal-array layouts."""
+
+    REALIZATION = "realization"
+    EXPERIMENT = "experiment"
+
+
+class SignalName(StrEnum):
+    """Names of signals used in a signal contract."""
+
+    REFERENCE = "r"
+    INPUT = "u"
+    OUTPUT = "y"
 
 
 class SignalRanks(NamedTuple):
@@ -44,22 +57,25 @@ def validate_signal_contract(
 ) -> ContractType:
     """Validate that the signals have no zero-sized axes and conform to a supported contract."""
     # Create a mapping of signal names to their corresponding arrays
-    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {"u": u, "y": y}
+    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {
+        SignalName.INPUT: u,
+        SignalName.OUTPUT: y,
+    }
     if r is not None:
-        arrays_by_signal["r"] = r
+        arrays_by_signal[SignalName.REFERENCE] = r
 
     check_for_zero_sized_axes(arrays_by_signal.values())
 
     # Determine the contract type based on the ranks of the arrays
     ranks = SignalRanks(r=r.ndim if r is not None else None, u=u.ndim, y=y.ndim)
-    if ranks == contract_types["realization"].ranks:
-        contract_type = "realization"
-    elif ranks == contract_types["experiment"].ranks:
-        contract_type = "experiment"
+    if ranks == contract_types[ContractType.REALIZATION].ranks:
+        contract_type = ContractType.REALIZATION
+    elif ranks == contract_types[ContractType.EXPERIMENT].ranks:
+        contract_type = ContractType.EXPERIMENT
     else:
         msg = (
-            f"Invalid input dimensions. Expected {contract_types['realization'].ranks} "
-            f"or {contract_types['experiment'].ranks}, got {ranks}."
+            f"Invalid input dimensions. Expected {contract_types[ContractType.REALIZATION].ranks} "
+            f"or {contract_types[ContractType.EXPERIMENT].ranks}, got {ranks}."
         )
         raise InvalidSignalRanksError(msg)
 
@@ -70,7 +86,8 @@ def validate_signal_contract(
 
 def _validate_matching_axes(
     arrays_by_signal: Mapping[
-        SignalName, NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
+        SignalName,
+        NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
     ],
     contract: SignalContract,
 ) -> None:

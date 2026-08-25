@@ -96,7 +96,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     contract_type = validate_signal_contract(r, u, y, contracts)
 
     nu = u.shape[1]
-    if contract_type == "realization":
+    if contract_type is ContractType.REALIZATION:
         r = to_experiment_layout(r, nu) if r is not None else None
         u = to_experiment_layout(u, nu)
         y = to_experiment_layout(y, nu)

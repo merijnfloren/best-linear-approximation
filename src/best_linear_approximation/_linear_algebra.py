@@ -11,10 +11,9 @@ def rightsolve(
     """Solve a right-sided linear system over the final two axes.
 
     Computes ``solution`` such that ``solution @ right == left``. Leading axes are
-    broadcast according to NumPy's rules. ``left`` has shape
-    ``(..., n_rows, n_cols)`` and square ``right`` has shape
-    ``(..., n_cols, n_cols)``. If ``right`` has matrix shape ``(1, 1)``, scalar
-    division is used instead of a matrix solve.
+    broadcast according to NumPy's rules. ``left`` has shape ``(..., n_rows, n_cols)``
+    and square ``right`` has shape ``(..., n_cols, n_cols)``. If ``right`` has matrix
+    shape ``(1, 1)``, scalar division is used instead of a matrix solve.
     """
     if right.shape[-2:] == (1, 1):
         return np.divide(left, right)
