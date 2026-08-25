@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,18 +9,11 @@ from best_linear_approximation._exceptions import InvalidSignalAxesError, Invali
 
 
 class ContractType(StrEnum):
-    """Supported signal-array layouts."""
-
     REALIZATION = "realization"
     EXPERIMENT = "experiment"
 
 
-class SignalName(StrEnum):
-    """Names of signals used in a signal contract."""
-
-    REFERENCE = "r"
-    INPUT = "u"
-    OUTPUT = "y"
+SignalName = Literal["r", "u", "y"]
 
 
 class SignalRanks(NamedTuple):
@@ -57,12 +50,9 @@ def validate_signal_contract(
 ) -> ContractType:
     """Validate that the signals have no zero-sized axes and conform to a supported contract."""
     # Create a mapping of signal names to their corresponding arrays
-    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {
-        SignalName.INPUT: u,
-        SignalName.OUTPUT: y,
-    }
+    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {"u": u, "y": y}
     if r is not None:
-        arrays_by_signal[SignalName.REFERENCE] = r
+        arrays_by_signal["r"] = r
 
     check_for_zero_sized_axes(arrays_by_signal.values())
 

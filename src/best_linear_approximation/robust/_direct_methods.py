@@ -10,7 +10,6 @@ from best_linear_approximation._signal_validation import (
     ContractType,
     MatchingAxes,
     SignalContract,
-    SignalName,
     SignalRanks,
 )
 from best_linear_approximation._typing import (
@@ -22,13 +21,11 @@ from best_linear_approximation._typing import (
 KNOWN_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
         ranks=SignalRanks(r=None, u=3, y=4),
-        matching_axes=(MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2)),),
+        matching_axes=(MatchingAxes(signals=("u", "y"), axes=(0, 2)),),
     ),
     ContractType.EXPERIMENT: SignalContract(
         ranks=SignalRanks(r=None, u=4, y=5),
-        matching_axes=(
-            MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2, 3)),
-        ),
+        matching_axes=(MatchingAxes(signals=("u", "y"), axes=(0, 2, 3)),),
     ),
 }
 
@@ -36,15 +33,11 @@ KNOWN_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 NOISY_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
         ranks=SignalRanks(r=None, u=4, y=4),
-        matching_axes=(
-            MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2, 3)),
-        ),
+        matching_axes=(MatchingAxes(signals=("u", "y"), axes=(0, 2, 3)),),
     ),
     ContractType.EXPERIMENT: SignalContract(
         ranks=SignalRanks(r=None, u=5, y=5),
-        matching_axes=(
-            MatchingAxes(signals=(SignalName.INPUT, SignalName.OUTPUT), axes=(0, 2, 3, 4)),
-        ),
+        matching_axes=(MatchingAxes(signals=("u", "y"), axes=(0, 2, 3, 4)),),
     ),
 }
 
