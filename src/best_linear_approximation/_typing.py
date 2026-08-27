@@ -14,17 +14,6 @@ every axis has nonzero length.
 """
 
 
-FrequencyDomainSignal = NewType(
-    "FrequencyDomainSignal",
-    NDArray[np.complexfloating[Any, Any]],
-)
-"""A validated frequency-domain signal in five-dimensional experiment layout.
-
-The shape is ``(n_bins, n_channels, nu, n_experiments, n_periods)``, and every
-axis has nonzero length.
-"""
-
-
 ExcitedBins = NewType("ExcitedBins", NDArray[np.int_])
 """A validated array of excited frequency bins.
 

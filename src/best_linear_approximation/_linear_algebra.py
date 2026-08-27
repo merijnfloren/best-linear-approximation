@@ -4,10 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def rightsolve(
-    left: NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
-    right: NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
-) -> NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]]:
+def right_solve(left: NDArray[Any], right: NDArray[Any]) -> NDArray[Any]:
     """Solve a right-sided linear system over the final two axes.
 
     Computes ``solution`` such that ``solution @ right == left``. Leading axes are
@@ -16,10 +13,15 @@ def rightsolve(
     shape ``(1, 1)``, scalar division is used instead of a matrix solve.
     """
     if right.shape[-2:] == (1, 1):
-        return np.divide(left, right)
+        return left / right
 
-    transposed_right = np.swapaxes(right, -1, -2)
-    transposed_left = np.swapaxes(left, -1, -2)
-    transposed_solution = np.linalg.solve(transposed_right, transposed_left)
+    return np.linalg.solve(right.mT, left.mT).mT
 
-    return np.swapaxes(transposed_solution, -1, -2)
+
+def vec(array: NDArray[Any]) -> NDArray[Any]:
+    """Vectorize the final two matrix axes of an array.
+
+    Stacks each matrix column by column while preserving leading axes. An input of shape
+    ``(..., n_rows, n_cols)`` produces an array of shape ``(..., n_rows * n_cols)``.
+    """
+    return array.reshape(*array.shape[:-2], -1, order="F")
