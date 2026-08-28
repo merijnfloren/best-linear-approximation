@@ -21,7 +21,7 @@ def propagate_covariance(covariance: NDArray[Any], jacobian: NDArray[Any]) -> ND
     ``covariance`` has shape ``(..., n_channels, n_channels)`` and ``jacobian`` has shape
     ``(..., n_transformed_channels, n_channels)``. Leading axes are treated as batch axes.
     For each batch, the covariance is transformed by the Jacobian according to
-    ``jacobian @ covariance @ jacobian.conj().T``. Returns an array of shape 
+    ``jacobian @ covariance @ jacobian.conj().T``. Returns an array of shape
     ``(..., n_transformed_channels, n_transformed_channels)``.
     """
     return jacobian @ covariance @ jacobian.conj().mT

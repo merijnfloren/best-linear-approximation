@@ -4,6 +4,33 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def kronecker_product(left: NDArray[Any], right: NDArray[Any]) -> NDArray[Any]:
+    """Compute Kronecker products of the final two axes of two arrays.
+
+    The leading axes of ``left`` and ``right`` must match exactly. ``left`` has
+    shape ``(..., n_rows_left, n_cols_left)`` and ``right`` has shape
+    ``(..., n_rows_right, n_cols_right)``. The output has shape
+    ``(..., n_rows_left * n_rows_right, n_cols_left * n_cols_right)``.
+    """
+    if left.shape[:-2] != right.shape[:-2]:
+        msg = (
+            f"Leading axes of left {left.shape[:-2]} and right {right.shape[:-2]} must match, "
+            f"got {left.shape} and {right.shape}."
+        )
+        raise ValueError(msg)
+
+    n_rows_left, n_cols_left = left.shape[-2:]
+    n_rows_right, n_cols_right = right.shape[-2:]
+
+    kronecker_tensor = left[..., :, None, :, None] * right[..., None, :, None, :]
+
+    return kronecker_tensor.reshape(
+        *left.shape[:-2],
+        n_rows_left * n_rows_right,
+        n_cols_left * n_cols_right,
+    )
+
+
 def right_solve(left: NDArray[Any], right: NDArray[Any]) -> NDArray[Any]:
     """Solve a right-sided linear system over the final two axes.
 

@@ -17,7 +17,7 @@ def standardize_channels(
 ) -> NDArray[np.floating[Any]]:
     """Standardize channels of an ``(n_leading, n_channels, ...)`` signal."""
     reduction_axes = (0, *range(2, signal.ndim))
-    means = signal.mean(axis=reduction_axes, keepdims=True)
+    means = np.mean(signal, axis=reduction_axes, keepdims=True)
     standard_deviations = signal.std(axis=reduction_axes, keepdims=True)
 
     return np.divide(

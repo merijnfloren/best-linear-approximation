@@ -1,6 +1,16 @@
 import numpy as np
 
-from best_linear_approximation._linear_algebra import right_solve
+from best_linear_approximation._linear_algebra import kronecker_product, right_solve
+
+
+def test_kronecker_product_matches_numpy_for_matrices() -> None:
+    rng = np.random.default_rng(0)
+    left = rng.random((2, 3))
+    right = rng.random((4, 5))
+
+    result = kronecker_product(left, right)
+
+    np.testing.assert_allclose(result, np.kron(left, right))
 
 
 def test_right_solve_solves_known_complex_system() -> None:
