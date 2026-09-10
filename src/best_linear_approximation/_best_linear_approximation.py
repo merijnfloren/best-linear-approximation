@@ -124,7 +124,7 @@ def compute_best_linear_approximation_noisy_input(
 
         # Batched U^{-T}
         U_inv_transpose = np.linalg.solve(
-            U_excited, np.eye(nu)
+            U_excited, np.eye(nu),
         ).mT if nu > 1 else 1 / U_excited
 
         # Batched V = [I_ny, -G]
@@ -223,7 +223,7 @@ def compute_best_linear_approximation_indirect(
 
         # Batched U^{-T}
         U_R_inv_transpose = np.linalg.solve(
-            U_R_excited, np.eye(nu)
+            U_R_excited, np.eye(nu),
         ).mT if nu > 1 else 1 / U_R_excited
 
         # Batched V = [I_ny, -G]
@@ -236,7 +236,7 @@ def compute_best_linear_approximation_indirect(
         # Total covariance: (n_excited_bins, ny * nu, ny * nu)
         if cov_Z_R_total is not None:
             G_cov_total = propagate_covariance(cov_Z_R_total, jacobian)
-        
+
         # Noise covariance: (n_excited_bins, ny * nu, ny * nu)
         if cov_Z_R_noise is not None:
             G_cov_noise = propagate_covariance(cov_Z_R_noise, jacobian)

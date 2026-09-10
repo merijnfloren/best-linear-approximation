@@ -18,7 +18,7 @@ from best_linear_approximation._exceptions import (
     PossibleMultiAmplitudeWarning,
     PossibleTransientWarning,
 )
-from best_linear_approximation._typing import ExcitedBins, TimeDomainSignal
+from best_linear_approximation._typing import TimeDomainSignal
 from best_linear_approximation.robust._direct_methods import KNOWN_INPUT_CONTRACTS
 from best_linear_approximation.robust._indirect_methods import INDIRECT_CONTRACTS
 
@@ -140,10 +140,10 @@ def test_warn_if_excitation_amplitudes_mismatch_ignores_unexcited_bins() -> None
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        _warn_if_excitation_amplitudes_mismatch(signal, ExcitedBins(np.array([1])))
+        _warn_if_excitation_amplitudes_mismatch(signal, max_bin=1)
 
     with pytest.warns(PossibleMultiAmplitudeWarning):
-        _warn_if_excitation_amplitudes_mismatch(signal, ExcitedBins(np.array([4])))
+        _warn_if_excitation_amplitudes_mismatch(signal, max_bin=4)
 
 
 def test_warn_if_excitation_amplitudes_mismatch_accepts_f16_special_odd_data() -> None:
@@ -157,7 +157,7 @@ def test_warn_if_excitation_amplitudes_mismatch_accepts_f16_special_odd_data() -
         signal = TimeDomainSignal(to_experiment_layout(np.mean(data.r, axis=-1), nu=1))
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            _warn_if_excitation_amplitudes_mismatch(signal, data.excited_bins)
+            _warn_if_excitation_amplitudes_mismatch(signal, max_bin=data.excited_bins[-1])
 
 
 def test_warn_if_excitation_amplitudes_mismatch_flags_f16_amplitude_levels() -> None:
@@ -168,7 +168,7 @@ def test_warn_if_excitation_amplitudes_mismatch_flags_f16_amplitude_levels() -> 
     signal = TimeDomainSignal(to_experiment_layout(np.mean(reference, axis=-1), nu=1))
 
     with pytest.warns(PossibleMultiAmplitudeWarning):
-        _warn_if_excitation_amplitudes_mismatch(signal, level2.excited_bins)
+        _warn_if_excitation_amplitudes_mismatch(signal, max_bin=level2.excited_bins[-1])
 
 
 def test_warn_if_excitation_amplitudes_mismatch_accepts_parallel_wiener_hammerstein_data() -> None:
@@ -177,4 +177,4 @@ def test_warn_if_excitation_amplitudes_mismatch_accepts_parallel_wiener_hammerst
         signal = TimeDomainSignal(to_experiment_layout(data.u, nu=1))
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            _warn_if_excitation_amplitudes_mismatch(signal, data.excited_bins)
+            _warn_if_excitation_amplitudes_mismatch(signal, max_bin=data.excited_bins[-1])

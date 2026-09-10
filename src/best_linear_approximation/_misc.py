@@ -6,10 +6,15 @@ from numpy.typing import NDArray
 
 def rms(
     signal: NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
-    axis: int | tuple[int, ...],
+    axis: int | tuple[int, ...] | None = None,
+    *,
+    keepdims: bool = False,
 ) -> NDArray[np.floating[Any]]:
-    """Compute the root-mean-square along the specified axis or axes."""
-    return np.sqrt(np.mean(np.abs(signal) ** 2, axis=axis))
+    """Compute root-mean-square values along the specified axes.
+
+    If ``axis`` is ``None``, compute one RMS value over the entire signal.
+    """
+    return np.sqrt(np.mean(np.abs(signal) ** 2, axis=axis, keepdims=keepdims))
 
 
 def standardize_channels(

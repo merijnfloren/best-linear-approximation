@@ -198,3 +198,40 @@ if __name__ == "__main__":
         plt.legend()
     plt.show()
 
+    u, y = np.load("src/best_linear_approximation/robust/input_data.npy"), np.load("src/best_linear_approximation/robust/output_data.npy")
+    # # Process data
+    # u_mean = np.mean(u, axis=(0, 3), keepdims=True)  # every realisation has a different mean
+    # y_mean = np.mean(y, axis=(0, 3), keepdims=True)  # every realisation has a different mean
+    # u = u - u_mean
+    # y = y - y_mean
+
+    # R = 12  # should be an integer multiple of nu
+    # u_train = u[:, :, :R, :]
+    # y_train = y[:, :, :R, :]
+
+    G, cov_total, cov_noise = noisy_input(u, y, 6400)
+
+    def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+        return 20 * np.log10(np.abs(magnitude))
+
+
+    import matplotlib.pyplot as plt
+    # create 3x3 subplots
+    plt.figure()
+    for i in range(3):
+        plt.subplot(3, 3, i * 3 + 1)
+        plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
+        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
+        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
+        plt.legend()
+        plt.subplot(3, 3, i * 3 + 2)
+        plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
+        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
+        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
+        plt.legend()
+        plt.subplot(3, 3, i * 3 + 3)
+        plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
+        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
+        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
+        plt.legend()
+    plt.show()

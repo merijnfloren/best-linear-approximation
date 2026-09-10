@@ -101,9 +101,8 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[NDArray[np
                 u = u[:, :, :, 1:]
                 y = y[:, :, :, 1:]
 
-            # Detect excited bins from the cleaner reference signal
             excited_bins = detect_excited_bins(
-                r,
+                r,  # detect from the cleaner reference signal
                 fs,
                 DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
                 print_summary=False,

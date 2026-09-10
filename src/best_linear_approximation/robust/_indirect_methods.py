@@ -66,8 +66,9 @@ def closed_loop(
 
 
 if __name__ == "__main__":
-    from best_linear_approximation._dataloader import load_f16
     import matplotlib.pyplot as plt
+
+    from best_linear_approximation._dataloader import load_f16
 
 
     def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:

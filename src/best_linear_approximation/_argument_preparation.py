@@ -115,11 +115,12 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     if n_periods == 1:
         _warn_noise_covariance_unavailable()
 
+    max_bin = excited_bins[-1]
     n_realizations = nu * n_experiments
     if n_realizations > 1:
-        _warn_if_excitation_amplitudes_mismatch(r if r is not None else u, excited_bins)
+        _warn_if_excitation_amplitudes_mismatch(r if r is not None else u, max_bin)
     if n_periods > 1:
-        _warn_if_output_spectra_mismatch(y, max_bin=excited_bins[-1])
+        _warn_if_output_spectra_mismatch(y, max_bin)
 
     return r, u, y, fs, excited_bins
 
@@ -185,13 +186,13 @@ def _warn_if_output_spectra_mismatch(y: NDArray[np.floating[Any]], max_bin: int)
 
 def _warn_if_excitation_amplitudes_mismatch(
     signal: NDArray[np.floating[Any]],
-    excited_bins: ExcitedBins,
+    max_bin: int,
 ) -> None:
     """Warn when adjacent realization magnitude spectra differ by more than 2.5%.
 
     Requires ``nu * n_experiments > 1``.
 
-    Only the supplied excited ``rfft`` bins are used. The canonical input and
+    Only ``rfft`` bins from DC through ``max_bin`` are used. The canonical input and
     experiment axes are merged into realization layout using column-major ordering.
     """
     _, n_channels, nu, n_experiments, n_periods = signal.shape
@@ -204,8 +205,10 @@ def _warn_if_excitation_amplitudes_mismatch(
         raise ValueError(msg)
 
     signal = standardize_channels(signal)
-    spectrum = np.fft.rfft(signal, axis=0)[excited_bins]
-    n_excited_freqs = excited_bins.size
+
+    stop_bin = max_bin + 1
+    spectrum = np.fft.rfft(signal, axis=0)[:stop_bin]
+    n_excited_freqs = spectrum.shape[0]
     realization_spectrum = spectrum.reshape(
         n_excited_freqs,
         n_channels,

@@ -26,7 +26,7 @@ def validate_sampling_frequency(fs: float) -> SamplingFrequencyHz:
         raise TypeError(msg)
 
     if not np.isfinite(fs) or fs <= 0:
-        msg = f"Sampling frequency must be finite and strictly positive, got {fs}."
+        msg = f"Sampling frequency must be finite and strictly positive, got {fs!r}."
         raise ValueError(msg)
 
     return SamplingFrequencyHz(fs)
@@ -133,13 +133,11 @@ def detect_excited_bins(
     """
     signal = standardize_channels(signal)
 
-    magnitude = np.abs(np.fft.rfft(signal, axis=0))
+    magnitude = np.abs(np.fft.rfft(signal, axis=0))[1:]  # exclude DC bin
     magnitude_avg = magnitude.mean(axis=tuple(range(1, magnitude.ndim)))
 
     excited_bins = np.flatnonzero(magnitude_avg > relative_threshold * magnitude_avg.max())
-
-    # Exclude DC bin (standardization should have removed it, but just in case)
-    excited_bins = excited_bins[excited_bins > 0]
+    excited_bins += 1  # shift to account for excluded DC bin
 
     # Exclude Nyquist bin (only applies to even-length signals)
     n_samples = signal.shape[0]
