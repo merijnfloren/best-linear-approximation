@@ -51,6 +51,15 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[NDArray[np
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
+        
+        The specific keys are:
+        - ``F16Data_FullMSine_Level1.mat``
+        - ``F16Data_FullMSine_Level3.mat``
+        - ``F16Data_FullMSine_Level5.mat``
+        - ``F16Data_FullMSine_Level7.mat``
+        - ``F16Data_SpecialOddMSine_Level1.mat``
+        - ``F16Data_SpecialOddMSine_Level2.mat``
+        - ``F16Data_SpecialOddMSine_Level3.mat``
 
     """
     url = "https://data.4tu.nl/file/b6dc643b-ecc6-437c-8a8a-1681650ec3fe/5414dfdc-6e8d-4208-be6e-fa553de9866f"
@@ -133,7 +142,12 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
-
+        
+        The specific keys are:
+        - ``train 100mV``
+        - ``train 200mV``
+        - ``train 300mV``
+    
     """
     # Quantities taken from the Fine Steering Mirror paper
     f_max = 3000  # [Hz]
@@ -179,6 +193,13 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
+        
+        The specific keys are:
+        - ``ParWH-amp-0``
+        - ``ParWH-amp-1``
+        - ``ParWH-amp-2``
+        - ``ParWH-amp-3``
+        - ``ParWH-amp-4``
 
     """
     nu, ny = 1, 1
@@ -250,6 +271,9 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
+        
+        The specific keys are:
+        - ``train SB multisine``
 
     """
     nlb_data = cast("Input_output_data", nlb.Silverbox()[0])
@@ -288,3 +312,41 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
     y = y_matrix.reshape(n_samples, ny, n_realizations, n_periods)
 
     return {nlb_data.name: DataBLA(r=None, u=u, y=y, fs=fs, excited_bins=excited_bins)}
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
+    
+    y = data.y
+    
+    Y = np.fft.rfft(y, axis=0)
+    
+    Y_mean_over_periods = np.mean(Y, axis=-1)
+    
+    # noise variance
+    Y_centered = Y - Y_mean_over_periods[..., None]
+    Y_var_noise = np.sum(np.abs(Y_centered) ** 2, axis=-1) / (y.shape[-1] - 1)
+    Y_var_noise = np.mean(Y_var_noise, axis=-1)
+    
+    # total variance
+    Y_abs_mean_over_periods = np.abs(Y_mean_over_periods)
+    Y_abs_mean_over_experiments = np.mean(Y_abs_mean_over_periods, axis=-1)
+    Y_centered_total = Y_abs_mean_over_periods - Y_abs_mean_over_experiments[..., None]
+    Y_var_total = np.sum(np.abs(Y_centered_total) ** 2, axis=-1) / (y.shape[-2] - 1)
+
+    # mean output spectrum
+    Y_mean = np.mean(Y_abs_mean_over_experiments, axis=-1)
+    
+    
+    # plot everything
+    plt.figure()
+    plt.semilogy(Y_mean, label="mean output spectrum")
+    plt.semilogy(np.sqrt(Y_var_noise), label="noise variance")
+    plt.semilogy(np.sqrt(Y_var_total), label="total variance")
+    plt.xlabel("frequency bin")
+    plt.ylabel("magnitude")
+    plt.legend()
+    plt.show()

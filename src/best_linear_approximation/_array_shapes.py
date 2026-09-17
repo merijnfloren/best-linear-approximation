@@ -51,8 +51,8 @@ def to_experiment_layout(
     return signal if signal.ndim == CANONICAL_SIGNAL_NDIM else signal[..., None]
 
 
-def move_matrix_axes_to_end(signal: NDArray[Any]) -> NDArray[Any]:
-    """Move axes 1 and 2 to the final two positions.
+def as_batched_matrices(signal: NDArray[Any]) -> NDArray[Any]:
+    """Arrange a signal as matrices for batched linear algebra.
 
     Transforms an array with shape ``(n_leading, n_rows, n_cols, ...)`` into
     one with shape ``(n_leading, ..., n_rows, n_cols)``.

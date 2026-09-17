@@ -48,5 +48,9 @@ ignore = [
     "D103",     # undocumented-public-function
     "FBT001",   # boolean-type-hint-positional-argument
     "INP001",   # implicit-namespace-package
+    "PLR0913",  # too-many-arguments
+    "PLR0917",  # too-many-positional-arguments
+    "N803",     # invalid-argument-name
     "S101",     # assert
 ]
+

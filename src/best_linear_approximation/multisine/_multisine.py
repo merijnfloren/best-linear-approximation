@@ -204,9 +204,8 @@ def random_phase_orthogonal_multisine(  # noqa: PLR0913
     -------
     RandomPhaseMultisine
         The generated signal of shape
-        ``(n_samples, nu, n_subexperiments, n_experiments)``, where
-        ``n_subexperiments == nu``, the corresponding frequency information,
-        the requested RMS amplitude, and the random seed used.
+        ``(n_samples, nu, nu, n_experiments)``, the corresponding frequency
+        information, the requested RMS amplitude, and the random seed used.
 
     Raises
     ------
@@ -357,3 +356,23 @@ def _ensure_requested_amplitude(
     amplitude_shape = (1, nu) + (1,) * n_trailing_axes
     requested_amplitudes = np.asarray(requested_amplitude).reshape(amplitude_shape)
     return u * (requested_amplitudes / current_amplitudes)
+
+
+if __name__ == "__main__":
+    
+    # create first a random-multisine for three inputs, then its orthogonal version. compare condition numbers of each 3x3 matrix
+    ms = random_phase_multisine(1000, 100, nu=30, n_realizations=30)
+    ms_ortho = random_phase_orthogonal_multisine(1000, 100, nu=30, n_experiments=1)
+    
+    U = np.fft.rfft(ms.u, axis=0)[ms.freq.excited_bins, :, :]
+    U_ortho = np.fft.rfft(ms_ortho.u, axis=0)[ms_ortho.freq.excited_bins, :, :, :]
+    
+    cond = 0
+    cond_ortho = 0
+    for i in range(len(U)):
+        cond += np.linalg.cond(U[i, :, :])
+        cond_ortho += np.linalg.cond(U_ortho[i, :, :, 0])
+        
+        
+    print(f"Average condition number of random-phase multisine: {cond / len(U)}")
+    print(f"Average condition number of random-phase orthogonal multisine: {cond_ortho / len(U_ortho)}")
