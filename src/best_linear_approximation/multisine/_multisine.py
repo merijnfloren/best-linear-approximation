@@ -359,20 +359,20 @@ def _ensure_requested_amplitude(
 
 
 if __name__ == "__main__":
-    
+
     # create first a random-multisine for three inputs, then its orthogonal version. compare condition numbers of each 3x3 matrix
     ms = random_phase_multisine(1000, 100, nu=30, n_realizations=30)
     ms_ortho = random_phase_orthogonal_multisine(1000, 100, nu=30, n_experiments=1)
-    
+
     U = np.fft.rfft(ms.u, axis=0)[ms.freq.excited_bins, :, :]
     U_ortho = np.fft.rfft(ms_ortho.u, axis=0)[ms_ortho.freq.excited_bins, :, :, :]
-    
+
     cond = 0
     cond_ortho = 0
     for i in range(len(U)):
         cond += np.linalg.cond(U[i, :, :])
         cond_ortho += np.linalg.cond(U_ortho[i, :, :, 0])
-        
-        
+
+
     print(f"Average condition number of random-phase multisine: {cond / len(U)}")
     print(f"Average condition number of random-phase orthogonal multisine: {cond_ortho / len(U_ortho)}")

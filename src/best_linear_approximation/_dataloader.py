@@ -317,20 +317,20 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
-    
+
     data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
-    
+
     y = data.y
-    
+
     Y = np.fft.rfft(y, axis=0)
-    
+
     Y_mean_over_periods = np.mean(Y, axis=-1)
-    
+
     # noise variance
     Y_centered = Y - Y_mean_over_periods[..., None]
     Y_var_noise = np.sum(np.abs(Y_centered) ** 2, axis=-1) / (y.shape[-1] - 1)
     Y_var_noise = np.mean(Y_var_noise, axis=-1)
-    
+
     # total variance
     Y_abs_mean_over_periods = np.abs(Y_mean_over_periods)
     Y_abs_mean_over_experiments = np.mean(Y_abs_mean_over_periods, axis=-1)
@@ -339,8 +339,8 @@ if __name__ == "__main__":
 
     # mean output spectrum
     Y_mean = np.mean(Y_abs_mean_over_experiments, axis=-1)
-    
-    
+
+
     # plot everything
     plt.figure()
     plt.semilogy(Y_mean, label="mean output spectrum")
