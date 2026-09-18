@@ -10,7 +10,9 @@ from best_linear_approximation.robust._direct_methods import known_input, noisy_
 
 from . import (
     assert_bla_recovery_and_covariances,
+    bla_disturbance_cases,
     bla_recovery_cases,
+    bla_recovery_seeds,
     covariance_availability_cases,
     covariance_unavailable_warning,
     generate_correlation_matrix,
@@ -54,12 +56,8 @@ def test_noisy_input_covariances_require_repetitions(
 
 
 @bla_recovery_cases
-@pytest.mark.parametrize("seed", [7, 19])
-@pytest.mark.parametrize(
-    ("nonlinear_std", "noise_std"),
-    [(0.0, 0.01), (0.02, 0.0), (0.02, 0.01)],
-    ids=["noise_only", "nonlinear_only", "mixed"],
-)
+@bla_recovery_seeds
+@bla_disturbance_cases
 def test_known_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,
@@ -119,12 +117,8 @@ def test_known_input_recovers_plant_and_propagated_covariances(
 
 
 @bla_recovery_cases
-@pytest.mark.parametrize("seed", [7, 19])
-@pytest.mark.parametrize(
-    ("nonlinear_std", "noise_std"),
-    [(0.0, 0.01), (0.02, 0.0), (0.02, 0.01)],
-    ids=["noise_only", "nonlinear_only", "mixed"],
-)
+@bla_recovery_seeds
+@bla_disturbance_cases
 def test_noisy_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,

@@ -29,6 +29,14 @@ bla_recovery_cases = pytest.mark.parametrize(
     ids=["siso", "rectangular_mimo"],
 )
 
+bla_recovery_seeds = pytest.mark.parametrize("seed", [7, 19])
+
+bla_disturbance_cases = pytest.mark.parametrize(
+    ("nonlinear_std", "noise_std"),
+    [(0.0, 0.01), (0.02, 0.0), (0.02, 0.01)],
+    ids=["noise_only", "nonlinear_only", "mixed"],
+)
+
 
 @dataclass
 class TestSetup:
