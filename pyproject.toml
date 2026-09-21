@@ -19,6 +19,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "matplotlib>=3.11.1",
+    "multisine>=0.1.0",
     "nonlinear-benchmarks>=1.0.1",
     "pandas>=3.0.5",
     "pyqt5>=5.15.11",

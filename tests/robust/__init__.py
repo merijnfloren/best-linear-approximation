@@ -5,16 +5,16 @@ from typing import Any
 
 import numpy as np
 import pytest
+from multisine import (
+    RandomPhaseMultisine,
+    random_phase_orthogonal_multisine,
+)
 from numpy.typing import NDArray
 
 from best_linear_approximation._array_shapes import as_batched_matrices
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
     TotalCovarianceUnavailableWarning,
-)
-from best_linear_approximation.multisine._multisine import (
-    RandomPhaseMultisine,
-    random_phase_orthogonal_multisine,
 )
 
 covariance_availability_cases = pytest.mark.parametrize(

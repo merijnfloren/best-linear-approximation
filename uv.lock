@@ -43,6 +43,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "matplotlib" },
+    { name = "multisine" },
     { name = "nonlinear-benchmarks" },
     { name = "pandas" },
     { name = "pyqt5" },
@@ -59,6 +60,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "matplotlib", specifier = ">=3.11.1" },
+    { name = "multisine", specifier = ">=0.1.0" },
     { name = "nonlinear-benchmarks", git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pyqt5", specifier = ">=5.15.11" },
@@ -722,6 +724,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/c0/9f7c9a46090390368a4d7bcb76bb87a4a36c421e4c0792cdb53486ffac7a/matplotlib_inline-0.2.2.tar.gz", hash = "sha256:72f3fe8fce36b70d4a5b612f899090cd0401deddc4ea90e1572b9f4bfb058c79", size = 8150, upload-time = "2026-05-08T17:33:33.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/09/5b161152e2d90f7b87f781c2e1267494aef9c32498df793f73ad0a0a494a/matplotlib_inline-0.2.2-py3-none-any.whl", hash = "sha256:3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6", size = 9534, upload-time = "2026-05-08T17:33:32.055Z" },
+]
+
+[[package]]
+name = "multisine"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/99/0f/4934a0162f523b1cca999c1f3a8425c746c543bbd2f673ce56fa98df7044/multisine-0.1.0.tar.gz", hash = "sha256:e3f50777bd5db54d988a751783c3ce9ac07d372bd0d9eae91559a7f007ef1817", size = 4737, upload-time = "2026-09-21T15:19:28.98Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/93/7994d032fb6a5496a06039f2a15a184509cf8ea9402adb7ce81a00523174/multisine-0.1.0-py3-none-any.whl", hash = "sha256:17b38c795eae845db86669aaa981644d5bef0ba27676bf215e8dea80071dba95", size = 5547, upload-time = "2026-09-21T15:19:27.601Z" },
 ]
 
 [[package]]

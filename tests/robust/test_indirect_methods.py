@@ -112,11 +112,12 @@ def test_closed_loop_recovers_plant_and_propagated_covariances(
     Y_nonlinear = sample_disturbances(cov_Y_nonlinear, rng, n_experiments, 1, nu)
     Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
 
+    # Generate closed-loop-correlated input and output disturbances
     input_control_sensitivity = input_sensitivity @ controller
     U_nonlinear = -input_control_sensitivity[:, None, None] @ Y_nonlinear
     U_noise = -input_control_sensitivity[:, None, None] @ Y_noise
     U_measured = U_linear[:, :, None] + U_nonlinear + U_noise
-    Y =  Y_linear[:, :, None]+ G_true[:, None, None] @ (U_nonlinear + U_noise)
+    Y =  Y_linear[:, :, None] + G_true[:, None, None] @ (U_nonlinear + U_noise)
     Y = Y + Y_nonlinear + Y_noise
 
     r = to_time_domain(R[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
