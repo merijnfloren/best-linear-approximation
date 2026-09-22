@@ -11,6 +11,7 @@ from best_linear_approximation.robust._direct_methods import known_input, noisy_
 from . import (
     assert_bla_recovery_and_covariances,
     bla_disturbance_cases,
+    bla_excitation_cases,
     bla_recovery_cases,
     bla_recovery_seeds,
     covariance_availability_cases,
@@ -58,16 +59,18 @@ def test_noisy_input_covariances_require_repetitions(
 @bla_recovery_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
+@bla_excitation_cases
 def test_known_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,
     seed: int,
     nonlinear_std: float,
     noise_std: float,
+    orthogonal: bool,
 ) -> None:
     """Verify known-input BLA recovery and its total and noise covariances."""
     rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
     multisine = setup.multisine
     n_experiments = setup.n_experiments
     n_periods = setup.n_periods
@@ -119,16 +122,18 @@ def test_known_input_recovers_plant_and_propagated_covariances(
 @bla_recovery_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
+@bla_excitation_cases
 def test_noisy_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,
     seed: int,
     nonlinear_std: float,
     noise_std: float,
+    orthogonal: bool,
 ) -> None:
     """Verify noisy-input BLA recovery and its total and noise covariances."""
     rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
     multisine = setup.multisine
     n_experiments = setup.n_experiments
     n_periods = setup.n_periods

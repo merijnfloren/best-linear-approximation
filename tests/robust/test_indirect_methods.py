@@ -1,3 +1,4 @@
+import warnings
 from typing import Any
 
 import numpy as np
@@ -5,12 +6,18 @@ import pytest
 from numpy.typing import NDArray
 
 from best_linear_approximation._covariance import propagate_covariance
+from best_linear_approximation._exceptions import (
+    PossibleMultiAmplitudeWarning,
+    PossibleTransientWarning,
+)
 from best_linear_approximation._linear_algebra import kronecker_product
+from best_linear_approximation.robust._direct_methods import noisy_input
 from best_linear_approximation.robust._indirect_methods import closed_loop, known_reference
 
 from . import (
     assert_bla_recovery_and_covariances,
     bla_disturbance_cases,
+    bla_excitation_cases,
     bla_recovery_cases,
     bla_recovery_seeds,
     covariance_availability_cases,
@@ -74,17 +81,100 @@ def test_closed_loop_is_identical_to_known_reference() -> None:
 
 @bla_recovery_cases
 @bla_recovery_seeds
+def test_known_reference_reduces_input_measurement_bias(
+    ny: int,
+    nu: int,
+    seed: int,
+) -> None:
+    """Verify a clean reference reduces open-loop input measurement bias."""
+    n_trials = 32
+    n_experiments = 512
+    n_periods = 4
+    input_noise_std = 6.0
+    output_noise_std = 0.2
+    minimum_relative_noisy_input_bias = 0.01
+    maximum_relative_noisy_input_bias = 0.1
+    maximum_relative_bias_ratio = 0.4
+    rng = np.random.default_rng(seed)
+
+    setup = generate_test_setup(
+        ny,
+        nu,
+        seed,
+        orthogonal=True,
+        n_experiments=n_experiments,
+        n_periods=n_periods,
+    )
+    multisine = setup.multisine
+    n_samples = setup.n_samples
+    n_excited_bins = multisine.freq.excited_bins.size
+
+    R = setup.U
+    G_true = setup.G_true
+    actuator = np.broadcast_to(np.eye(nu), (n_excited_bins, nu, nu)).astype(complex)
+    actuator += 0.2 * (rng.normal(size=actuator.shape) + 1j * rng.normal(size=actuator.shape))
+    U_true = actuator[:, None] @ R
+    Y_true = G_true[:, None] @ U_true
+
+    cov_U_noise = input_noise_std**2 * generate_correlation_matrix(rng, n_excited_bins, nu)
+    cov_Y_noise = output_noise_std**2 * generate_correlation_matrix(rng, n_excited_bins, ny)
+    r = to_time_domain(R[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
+    known_reference_errors = []
+    noisy_input_errors = []
+
+    for _ in range(n_trials):
+        U_noise = sample_disturbances(cov_U_noise, rng, n_experiments, n_periods, nu)
+        Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
+        u = to_time_domain(U_true[:, :, None] + U_noise, n_samples, multisine.freq.excited_bins)
+        y = to_time_domain(Y_true[:, :, None] + Y_noise, n_samples, multisine.freq.excited_bins)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", PossibleMultiAmplitudeWarning)
+            warnings.simplefilter("ignore", PossibleTransientWarning)
+            known_reference_estimate = known_reference(
+                r,
+                u,
+                y,
+                multisine.freq.fs,
+                multisine.freq.excited_bins,
+            )[0]
+            noisy_input_estimate = noisy_input(
+                u,
+                y,
+                multisine.freq.fs,
+                multisine.freq.excited_bins,
+            )[0]
+        known_reference_errors.append(known_reference_estimate - G_true)
+        noisy_input_errors.append(noisy_input_estimate - G_true)
+
+    true_response_norm = np.linalg.norm(G_true)
+    relative_known_reference_bias = (
+        np.linalg.norm(np.mean(known_reference_errors, axis=0)) / true_response_norm
+    )
+    relative_noisy_input_bias = (
+        np.linalg.norm(np.mean(noisy_input_errors, axis=0)) / true_response_norm
+    )
+
+    assert relative_noisy_input_bias > minimum_relative_noisy_input_bias
+    assert relative_noisy_input_bias < maximum_relative_noisy_input_bias
+    assert relative_known_reference_bias < maximum_relative_bias_ratio * relative_noisy_input_bias
+
+
+@bla_recovery_cases
+@bla_recovery_seeds
 @bla_disturbance_cases
+@bla_excitation_cases
 def test_closed_loop_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,
     seed: int,
     nonlinear_std: float,
     noise_std: float,
+    orthogonal: bool,
 ) -> None:
     """Verify closed-loop BLA recovery and its total and noise covariances."""
     rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
     multisine = setup.multisine
     n_experiments = setup.n_experiments
     n_periods = setup.n_periods
@@ -206,6 +296,14 @@ def _compute_indirect_oracle_covariances(
     )
     cov_G_total_expected = propagate_covariance(cov_Z_R_total, jacobian)
 
-    # Noise covariance is estimated before projecting each recording onto R
-    cov_G_noise_expected = propagate_covariance(cov_Z_noise / n_experiments / n_periods, jacobian)
+    # Noise covariance is projected onto R before averaging over experiments
+    cov_Z_R_noise = (
+        np.mean(
+            propagate_covariance(cov_Z_noise[:, None], reference_transform),
+            axis=1,
+        )
+        / n_experiments
+        / n_periods
+    )
+    cov_G_noise_expected = propagate_covariance(cov_Z_R_noise, jacobian)
     return cov_G_total_expected, cov_G_noise_expected

@@ -30,7 +30,6 @@ dev = [
 [tool.uv.sources]
 nonlinear-benchmarks = { git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git" }
 
-
 [tool.ruff]
 line-length = 100
 

@@ -7,11 +7,12 @@ import numpy as np
 import pytest
 from multisine import (
     RandomPhaseMultisine,
+    random_phase_multisine,
     random_phase_orthogonal_multisine,
 )
 from numpy.typing import NDArray
 
-from best_linear_approximation._array_shapes import as_batched_matrices
+from best_linear_approximation._array_shapes import as_batched_matrices, to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
     TotalCovarianceUnavailableWarning,
@@ -30,6 +31,12 @@ bla_recovery_cases = pytest.mark.parametrize(
 )
 
 bla_recovery_seeds = pytest.mark.parametrize("seed", [7, 19])
+
+bla_excitation_cases = pytest.mark.parametrize(
+    "orthogonal",
+    [True, False],
+    ids=["orthogonal", "nonorthogonal"],
+)
 
 bla_disturbance_cases = pytest.mark.parametrize(
     ("nonlinear_std", "noise_std"),
@@ -126,6 +133,7 @@ def generate_test_setup(
     ny: int,
     nu: int,
     seed: int,
+    orthogonal: bool,
     *,
     n_experiments: int = 2048,
     n_periods: int = 8,
@@ -133,21 +141,45 @@ def generate_test_setup(
     """Generate the shared multisine excitation and true frequency response."""
     n_samples = 32
     fs = 128.0
-    multisine = random_phase_orthogonal_multisine(
-        n_samples,
-        fs,
-        nu,
-        n_experiments=n_experiments,
-        f_min=8.0,
-        f_max=36.0,
-        seed=seed,
-    )
+    if orthogonal:
+        multisine = random_phase_orthogonal_multisine(
+            n_samples,
+            fs,
+            nu,
+            n_experiments=n_experiments,
+            f_min=8.0,
+            f_max=36.0,
+            seed=seed,
+        )
+        u = multisine.u
+    else:
+        max_condition_number = 10.0
+        n_candidate_experiments = 8 * n_experiments
+        n_realizations = n_candidate_experiments * nu
+        multisine = random_phase_multisine(
+            n_samples,
+            fs,
+            nu=nu,
+            n_realizations=n_realizations,
+            f_min=8.0,
+            f_max=36.0,
+            seed=seed,
+        )
+        u_candidates = to_experiment_layout(multisine.u, nu)[..., 0]
+        excited_bins = multisine.freq.excited_bins
+        U_candidates = as_batched_matrices(np.fft.rfft(u_candidates, axis=0)[excited_bins])
+        condition_numbers = np.linalg.cond(U_candidates)
+        well_conditioned = np.all(condition_numbers <= max_condition_number, axis=0)
+        experiment_indices = np.flatnonzero(well_conditioned)[:n_experiments]
+        assert experiment_indices.size == n_experiments
+        u = u_candidates[:, :, :, experiment_indices]
+
     excited_bins = multisine.freq.excited_bins
     n_excited_bins = excited_bins.size
     G_rng = np.random.default_rng(seed)
     G_shape = (n_excited_bins, ny, nu)
     G_true = G_rng.normal(scale=0.5, size=G_shape) + 1j * G_rng.normal(scale=0.5, size=G_shape)
-    U = as_batched_matrices(np.fft.rfft(multisine.u, axis=0)[excited_bins])
+    U = as_batched_matrices(np.fft.rfft(u, axis=0)[excited_bins])
     return TestSetup(multisine, U, G_true, n_experiments, n_periods, n_samples)
 
 

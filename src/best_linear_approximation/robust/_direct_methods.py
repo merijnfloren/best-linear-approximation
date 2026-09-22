@@ -230,43 +230,162 @@ def _compute_robust_noisy_input(
     return G, G_cov_total, G_cov_noise
 
 
+# if __name__ == "__main__":
+#     from best_linear_approximation._dataloader import (
+#         load_f16,
+#         load_fine_steering_mirror,
+#         load_parallel_wiener_hammerstein,
+#         load_silverbox,
+#     )
+
+    # data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
+
+    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+
+    # import matplotlib.pyplot as plt
+
+
+    # def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    #     return 20 * np.log10(np.abs(magnitude))
+
+    # plt.figure()
+    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
+    # plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+    # plt.legend()
+    # plt.show()
+
+    # data = load_silverbox()["train SB multisine"]
+    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs)
+
+
+    # plt.figure()
+    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
+    # plt.legend()
+    # plt.show()
+
+    # data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
+    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+
+
+    # # create 3x1 subplots
+    # plt.figure()
+    # plt.subplot(3, 1, 1)
+    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
+    # plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+    # plt.legend()
+    # plt.subplot(3, 1, 2)
+    # plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
+    # plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
+    # plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+    # plt.legend()
+    # plt.subplot(3, 1, 3)
+    # plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
+    # plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
+    # plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+    # plt.legend()
+    # plt.show()
+
+    # data = load_f16()["F16Data_FullMSine_Level3.mat"]
+    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+
+    # # create 3x1 subplots
+    # plt.figure()
+    # plt.subplot(3, 1, 1)
+    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+
+    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+    # plt.legend()
+    # plt.subplot(3, 1, 2)
+    # plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
+    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+    # plt.legend()
+    # plt.subplot(3, 1, 3)
+    # plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
+    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+    # plt.legend()
+    # plt.show()
+
+
+    # data = load_fine_steering_mirror()["train 300mV"]
+    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+
+    # # create 3x3 subplots
+    # plt.figure()
+    # for i in range(3):
+    #     plt.subplot(3, 3, i * 3 + 1)
+    #     plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
+    #     plt.legend()
+    #     plt.subplot(3, 3, i * 3 + 2)
+    #     plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
+    #     plt.legend()
+    #     plt.subplot(3, 3, i * 3 + 3)
+    #     plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
+    #     plt.legend()
+    # plt.show()
+
+    # u, y = np.load("src/best_linear_approximation/robust/input_data.npy"), np.load("src/best_linear_approximation/robust/output_data.npy")
+    # # # Process data
+    # # u_mean = np.mean(u, axis=(0, 3), keepdims=True)  # every realisation has a different mean
+    # # y_mean = np.mean(y, axis=(0, 3), keepdims=True)  # every realisation has a different mean
+    # # u = u - u_mean
+    # # y = y - y_mean
+
+    # # R = 12  # should be an integer multiple of nu
+    # # u_train = u[:, :, :R, :]
+    # # y_train = y[:, :, :R, :]
+
+    # G, cov_total, cov_noise = noisy_input(u, y, 6400)
+
+    # def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+    #     return 20 * np.log10(np.abs(magnitude))
+
+
+    # import matplotlib.pyplot as plt
+    # # create 3x3 subplots
+    # plt.figure()
+    # for i in range(3):
+    #     plt.subplot(3, 3, i * 3 + 1)
+    #     plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
+    #     plt.legend()
+    #     plt.subplot(3, 3, i * 3 + 2)
+    #     plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
+    #     plt.legend()
+    #     plt.subplot(3, 3, i * 3 + 3)
+    #     plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
+    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
+    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
+    #     plt.legend()
+    # plt.show()
+
+
 if __name__ == "__main__":
-    from best_linear_approximation._dataloader import (
-        load_f16,
-        load_fine_steering_mirror,
-        load_parallel_wiener_hammerstein,
-        load_silverbox,
-    )
-
-    data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
-
-    G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-
     import matplotlib.pyplot as plt
+
+    from best_linear_approximation._dataloader import load_f16
 
 
     def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
         return 20 * np.log10(np.abs(magnitude))
 
-    plt.figure()
-    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
-    plt.legend()
-    plt.show()
-
-    data = load_silverbox()["train SB multisine"]
-    G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs)
-
-
-    plt.figure()
-    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    plt.legend()
-    plt.show()
 
     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
+    r = data.r.mean(axis=-1)
     G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    
+    print(data.u.shape)
 
 
     # create 3x1 subplots
@@ -289,6 +408,7 @@ if __name__ == "__main__":
     plt.show()
 
     data = load_f16()["F16Data_FullMSine_Level3.mat"]
+    r = data.r.mean(axis=-1)
     G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
 
     # create 3x1 subplots
@@ -307,65 +427,9 @@ if __name__ == "__main__":
     plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
     plt.legend()
     plt.show()
-
-
-    data = load_fine_steering_mirror()["train 300mV"]
-    G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-
-    # create 3x3 subplots
+    
+        # create 3x1 subplots
+    print(data.y.shape)
     plt.figure()
-    for i in range(3):
-        plt.subplot(3, 3, i * 3 + 1)
-        plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
-        plt.legend()
-        plt.subplot(3, 3, i * 3 + 2)
-        plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
-        plt.legend()
-        plt.subplot(3, 3, i * 3 + 3)
-        plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
-        plt.legend()
-    plt.show()
-
-    u, y = np.load("src/best_linear_approximation/robust/input_data.npy"), np.load("src/best_linear_approximation/robust/output_data.npy")
-    # # Process data
-    # u_mean = np.mean(u, axis=(0, 3), keepdims=True)  # every realisation has a different mean
-    # y_mean = np.mean(y, axis=(0, 3), keepdims=True)  # every realisation has a different mean
-    # u = u - u_mean
-    # y = y - y_mean
-
-    # R = 12  # should be an integer multiple of nu
-    # u_train = u[:, :, :R, :]
-    # y_train = y[:, :, :R, :]
-
-    G, cov_total, cov_noise = noisy_input(u, y, 6400)
-
-    def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
-        return 20 * np.log10(np.abs(magnitude))
-
-
-    import matplotlib.pyplot as plt
-    # create 3x3 subplots
-    plt.figure()
-    for i in range(3):
-        plt.subplot(3, 3, i * 3 + 1)
-        plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
-        plt.legend()
-        plt.subplot(3, 3, i * 3 + 2)
-        plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
-        plt.legend()
-        plt.subplot(3, 3, i * 3 + 3)
-        plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
-        plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
-        plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
-        plt.legend()
+    plt.plot(np.squeeze(data.y[:, 0, 0, :]), label="G[0, 0]")
     plt.show()
