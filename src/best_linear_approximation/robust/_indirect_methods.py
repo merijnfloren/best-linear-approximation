@@ -97,22 +97,20 @@ def _compute_robust_indirect(
     R = np.fft.rfft(r_batched_matrices, axis=0)[excited_bins]
     U = np.fft.rfft(u_batched_matrices, axis=0)[excited_bins]
     Y = np.fft.rfft(y_batched_matrices, axis=0)[excited_bins]
+    n_excited_bins = len(excited_bins)
 
-    # Data noise covariance: (n_excited_bins, (ny + nu) * nu, (ny + nu) * nu)
+    # Per-experiment data noise covariance: (n_excited_bins, n_experiments,
+    # (ny + nu) * nu, (ny + nu) * nu)
     if n_periods > 1:
         Z = np.concatenate(  # (n_excited_bins, n_experiments, n_periods, ny + nu, nu)
             (Y, U),
             axis=-2,
         )
-
-        cov_Z_R_noise = np.mean(
-            compute_sample_covariance(
-                vec(Z),  # (n_excited_bins, n_experiments, n_periods, (ny + nu) * nu)
-            ) / n_periods,
-            axis=1,
-        ) / n_experiments
+        cov_Z_noise = compute_sample_covariance(
+            vec(Z),  # (n_excited_bins, n_experiments, n_periods, (ny + nu) * nu)
+        ) / n_periods
     else:
-        cov_Z_R_noise = None
+        cov_Z_noise = None
 
     # Proceed with the period sample means
     U = np.mean(U, axis=2)  # (n_excited_bins, n_experiments, nu, nu)
@@ -121,10 +119,24 @@ def _compute_robust_indirect(
     # Remove singleton reference dimension
     R = np.squeeze(R, axis=2)  # (n_excited_bins, n_experiments, nu, nu)
 
-    # Project the input-output spectra onto the known reference.
+    # Project the input-output spectra onto the known reference
     reference_projection = R.conj().mT
     U_R = U @ reference_projection  # (n_excited_bins, n_experiments, nu, nu)
     Y_R = Y @ reference_projection  # (n_excited_bins, n_experiments, ny, nu)
+
+    # Project the per-experiment noise covariance onto the known reference
+    if cov_Z_noise is not None:
+        n_channels = ny + nu
+        I_channels = np.broadcast_to(
+            np.eye(n_channels), (n_excited_bins, n_experiments, n_channels, n_channels),
+        )
+        reference_transform = kronecker_product(R.conj(), I_channels)
+        cov_Z_R_noise = np.mean(
+            propagate_covariance(cov_Z_noise, reference_transform),
+            axis=1,
+        ) / n_experiments
+    else:
+        cov_Z_R_noise = None
 
     # Data total covariance: (n_excited_bins, (ny + nu) * nu, (ny + nu) * nu)
     if n_experiments > 1:
@@ -150,8 +162,6 @@ def _compute_robust_indirect(
     G_cov_total = None
     G_cov_noise = None
     if cov_Z_R_total is not None or cov_Z_R_noise is not None:
-        n_excited_bins = G.shape[0]
-
         # Batched U^{-T}
         U_R_inv_transpose = np.linalg.solve(U_R, np.eye(nu)).mT if nu > 1 else 1 / U_R
 
@@ -188,6 +198,8 @@ if __name__ == "__main__":
     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
     r = data.r.mean(axis=-1)
     G, cov_total, cov_noise = closed_loop(r, data.u, data.y, data.fs, data.excited_bins)
+    
+    print(data.u.shape)
 
 
     # create 3x1 subplots
@@ -228,4 +240,10 @@ if __name__ == "__main__":
     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
     plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
     plt.legend()
+    plt.show()
+    
+        # create 3x1 subplots
+    print(data.y.shape)
+    plt.figure()
+    plt.plot(np.squeeze(data.y[:, 0, 0, :]), label="G[0, 0]")
     plt.show()
