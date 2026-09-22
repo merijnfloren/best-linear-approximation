@@ -1,10 +1,11 @@
 """Result types for best linear approximation estimates."""
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+
+from best_linear_approximation._typing import ComplexArray, RealArray
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ class FrequencyInfo:
         Lowest excited frequency in Hz.
     f_max : float
         Highest excited frequency in Hz.
-    freqs : NDArray[np.floating[Any]]
+    freqs : RealArray
         Non-negative DFT frequencies in Hz.
     excited_bins : NDArray[np.int_]
         Indices of the excited DFT frequencies.
@@ -34,7 +35,7 @@ class FrequencyInfo:
     f_res: float
     f_min: float
     f_max: float
-    freqs: NDArray[np.floating[Any]]
+    freqs: RealArray
     excited_bins: NDArray[np.int_]
     non_excited_bins: NDArray[np.int_]
 
@@ -45,67 +46,67 @@ class FrequencyResponse:
 
     Attributes
     ----------
-    value : NDArray[np.complexfloating[Any, Any]]
+    value : ComplexArray
         Frequency response, with shape ``(n_excited_bins, ny, nu)``.
-    cov_total : NDArray[np.complexfloating[Any, Any]] or None
+    cov_total : ComplexArray or None
         Total covariance of ``value``. ``None`` when fewer than two experiments
         are available. Has shape ``(n_excited_bins, ny * nu, ny * nu)``.
-    cov_noise : NDArray[np.complexfloating[Any, Any]] or None
+    cov_noise : ComplexArray or None
         Noise covariance of ``value``. ``None`` when fewer than two periods are
         available. Has shape ``(n_excited_bins, ny * nu, ny * nu)``.
-    cov_nonlinear : NDArray[np.complexfloating[Any, Any]] or None
+    cov_nonlinear : ComplexArray or None
         Nonlinear-distortion covariance, equal to ``cov_total - cov_noise``.
         ``None`` when either covariance is unavailable. Has shape
         ``(n_excited_bins, ny * nu, ny * nu)``.
-    var_total, var_noise, var_nonlinear : NDArray[np.floating[Any]] or None
+    var_total, var_noise, var_nonlinear : RealArray or None
         Per-frequency variances of each response element, with shape
         ``(n_excited_bins, ny, nu)``. Each is the corresponding covariance
         diagonal, reshaped from column-wise vectorization.
-    std_total, std_noise, std_nonlinear : NDArray[np.floating[Any]] or None
+    std_total, std_noise, std_nonlinear : RealArray or None
         Per-frequency standard deviations of each response element, with shape
         ``(n_excited_bins, ny, nu)``.
 
     """
 
-    value: NDArray[np.complexfloating[Any, Any]]
-    cov_total: NDArray[np.complexfloating[Any, Any]] | None
-    cov_noise: NDArray[np.complexfloating[Any, Any]] | None
-    cov_nonlinear: NDArray[np.complexfloating[Any, Any]] | None
+    value: ComplexArray
+    cov_total: ComplexArray | None
+    cov_noise: ComplexArray | None
+    cov_nonlinear: ComplexArray | None
 
     @property
-    def var_total(self) -> NDArray[np.floating[Any]] | None:
+    def var_total(self) -> RealArray | None:
         """Total variance for every frequency-response element."""
         return self._covariance_diagonal(self.cov_total)
 
     @property
-    def var_noise(self) -> NDArray[np.floating[Any]] | None:
+    def var_noise(self) -> RealArray | None:
         """Noise variance for every frequency-response element."""
         return self._covariance_diagonal(self.cov_noise)
 
     @property
-    def var_nonlinear(self) -> NDArray[np.floating[Any]] | None:
+    def var_nonlinear(self) -> RealArray | None:
         """Nonlinear-distortion variance for every frequency-response element."""
         return self._covariance_diagonal(self.cov_nonlinear)
 
     @property
-    def std_total(self) -> NDArray[np.floating[Any]] | None:
+    def std_total(self) -> RealArray | None:
         """Total standard deviation for every frequency-response element."""
         return self._standard_deviation(self.var_total)
 
     @property
-    def std_noise(self) -> NDArray[np.floating[Any]] | None:
+    def std_noise(self) -> RealArray | None:
         """Noise standard deviation for every frequency-response element."""
         return self._standard_deviation(self.var_noise)
 
     @property
-    def std_nonlinear(self) -> NDArray[np.floating[Any]] | None:
+    def std_nonlinear(self) -> RealArray | None:
         """Nonlinear-distortion standard deviation for every response element."""
         return self._standard_deviation(self.var_nonlinear)
 
     def _covariance_diagonal(
         self,
-        covariance: NDArray[np.complexfloating[Any, Any]] | None,
-    ) -> NDArray[np.floating[Any]] | None:
+        covariance: ComplexArray | None,
+    ) -> RealArray | None:
         """Reshape a covariance diagonal into the response matrix layout."""
         if covariance is None:
             return None
@@ -115,8 +116,8 @@ class FrequencyResponse:
 
     @staticmethod
     def _standard_deviation(
-        variance: NDArray[np.floating[Any]] | None,
-    ) -> NDArray[np.floating[Any]] | None:
+        variance: RealArray | None,
+    ) -> RealArray | None:
         """Return the standard deviation associated with a variance array."""
         if variance is None:
             return None
@@ -166,9 +167,9 @@ def create_frequency_info(
 
 def create_bla(
     frequency_info: FrequencyInfo,
-    frequency_response: NDArray[np.complexfloating[Any, Any]],
-    cov_total: NDArray[np.complexfloating[Any, Any]] | None,
-    cov_noise: NDArray[np.complexfloating[Any, Any]] | None,
+    frequency_response: ComplexArray,
+    cov_total: ComplexArray | None,
+    cov_noise: ComplexArray | None,
 ) -> BLA:
     """Create a BLA result and derive its nonlinear-distortion covariance."""
     if cov_total is None or cov_noise is None:

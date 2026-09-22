@@ -1,6 +1,6 @@
 import warnings
 from collections.abc import Mapping
-from typing import Any, overload
+from typing import overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,6 +24,7 @@ from best_linear_approximation._spectral_validation import (
 )
 from best_linear_approximation._typing import (
     ExcitedBins,
+    RealArray,
     SamplingFrequencyHz,
     TimeDomainSignal,
 )
@@ -36,8 +37,8 @@ MINIMUM_RELATIVE_REALIZATION_MISMATCH = 0.025  # keep in sync with docstring
 @overload
 def prepare_arguments(
     r: None,
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
@@ -52,9 +53,9 @@ def prepare_arguments(
 
 @overload
 def prepare_arguments(
-    r: NDArray[np.floating[Any]],
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    r: RealArray,
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
@@ -68,9 +69,9 @@ def prepare_arguments(
 
 
 def prepare_arguments(  # noqa: PLR0913, PLR0917
-    r: NDArray[np.floating[Any]] | None,
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    r: RealArray | None,
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
@@ -125,7 +126,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     return r, u, y, fs, excited_bins
 
 
-def _warn_if_output_spectra_mismatch(y: NDArray[np.floating[Any]], max_bin: int) -> None:
+def _warn_if_output_spectra_mismatch(y: RealArray, max_bin: int) -> None:
     """Warn when the aggregate spectral mismatch between adjacent periods exceeds 2.5%.
 
     Requires ``n_periods > 1``.
@@ -185,7 +186,7 @@ def _warn_if_output_spectra_mismatch(y: NDArray[np.floating[Any]], max_bin: int)
 
 
 def _warn_if_excitation_amplitudes_mismatch(
-    signal: NDArray[np.floating[Any]],
+    signal: RealArray,
     max_bin: int,
 ) -> None:
     """Warn when adjacent realization magnitude spectra differ by more than 2.5%.

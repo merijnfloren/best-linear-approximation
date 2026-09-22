@@ -1,11 +1,9 @@
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
-from typing import Any, Literal, NamedTuple
-
-import numpy as np
-from numpy.typing import NDArray
+from typing import Literal, NamedTuple
 
 from best_linear_approximation._exceptions import InvalidSignalAxesError, InvalidSignalRanksError
+from best_linear_approximation._typing import ComplexArray, RealArray
 
 
 class ContractType(StrEnum):
@@ -33,7 +31,7 @@ class SignalContract(NamedTuple):
 
 
 def check_for_zero_sized_axes(
-    arrays: Iterable[NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]]],
+    arrays: Iterable[RealArray | ComplexArray],
 ) -> None:
     """Raise a ``ValueError`` if any array has a zero-sized axis."""
     for array in arrays:
@@ -43,14 +41,14 @@ def check_for_zero_sized_axes(
 
 
 def validate_signal_contract(
-    r: NDArray[np.floating[Any]] | None,
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    r: RealArray | None,
+    u: RealArray,
+    y: RealArray,
     contract_types: Mapping[ContractType, SignalContract],
 ) -> ContractType:
     """Validate that the signals have no zero-sized axes and conform to a supported contract."""
     # Create a mapping of signal names to their corresponding arrays
-    arrays_by_signal: Mapping[SignalName, NDArray[np.floating[Any]]] = {"u": u, "y": y}
+    arrays_by_signal: Mapping[SignalName, RealArray] = {"u": u, "y": y}
     if r is not None:
         arrays_by_signal["r"] = r
 
@@ -77,7 +75,7 @@ def validate_signal_contract(
 def _validate_matching_axes(
     arrays_by_signal: Mapping[
         SignalName,
-        NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]],
+        RealArray | ComplexArray,
     ],
     contract: SignalContract,
 ) -> None:
@@ -95,7 +93,7 @@ def _validate_matching_axes(
 
 
 def _axes_match(
-    arrays: Sequence[NDArray[np.floating[Any]] | NDArray[np.complexfloating[Any, Any]]],
+    arrays: Sequence[RealArray | ComplexArray],
     axis: int | tuple[int, ...],
 ) -> bool:
     """Check whether all arrays have equal sizes along the selected axis or axes.

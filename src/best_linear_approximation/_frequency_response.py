@@ -1,15 +1,11 @@
-from typing import Any
-
-import numpy as np
-from numpy.typing import NDArray
-
 from best_linear_approximation._linear_algebra import right_solve
+from best_linear_approximation._typing import ComplexArray
 
 
 def compute_frequency_response(
-    input_spectrum: NDArray[np.complexfloating[Any, Any]],
-    output_spectrum: NDArray[np.complexfloating[Any, Any]],
-) -> NDArray[np.complexfloating[Any, Any]]:
+    input_spectrum: ComplexArray,
+    output_spectrum: ComplexArray,
+) -> ComplexArray:
     """Compute the frequency response at the excited frequencies.
 
     The input and output spectra have shapes ``(n_excited_bins, ..., nu, nu)``

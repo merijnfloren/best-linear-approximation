@@ -25,6 +25,7 @@ from best_linear_approximation._signal_validation import (
 )
 from best_linear_approximation._typing import (
     ExcitedBins,
+    RealArray,
     SamplingFrequencyHz,
     TimeDomainSignal,
 )
@@ -54,8 +55,8 @@ NOISY_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 
 
 def known_input(
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> BLA:
@@ -63,12 +64,21 @@ def known_input(
 
     Parameters
     ----------
-    u, y : NDArray[np.floating[Any]]
-        Periodic input and output measurements.
+    u : RealArray
+        Periodic input measurements in either realization layout with shape
+        ``(n_samples, nu, n_realizations)``, or experiment layout with shape
+        ``(n_samples, nu, nu, n_experiments)``.
+    y : RealArray
+        Periodic output measurements in either realization layout with shape
+        ``(n_samples, ny, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, ny, nu, n_experiments, n_periods)``.
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Excited DFT bins, or a relative detection threshold.
+        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
+        bins. A float in ``(0, 1)`` instead selects them automatically from
+        ``u``: bins whose channel-averaged spectral magnitude exceeds this
+        fraction of the maximum magnitude are selected.
 
     Returns
     -------
@@ -82,8 +92,8 @@ def known_input(
 
 
 def noisy_input(
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> BLA:
@@ -91,12 +101,21 @@ def noisy_input(
 
     Parameters
     ----------
-    u, y : NDArray[np.floating[Any]]
-        Periodic input and output measurements.
+    u : RealArray
+        Periodic input measurements in realization layout with shape
+        ``(n_samples, nu, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, nu, nu, n_experiments, n_periods)``.
+    y : RealArray
+        Periodic output measurements in realization layout with shape
+        ``(n_samples, ny, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, ny, nu, n_experiments, n_periods)``.
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Excited DFT bins, or a relative detection threshold.
+        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
+        bins. A float in ``(0, 1)`` instead selects them automatically from
+        ``u``: bins whose channel-averaged spectral magnitude exceeds this
+        fraction of the maximum magnitude are selected.
 
     Returns
     -------
@@ -110,8 +129,8 @@ def noisy_input(
 
 
 def _prepare_arguments_known_input(
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
 ) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
@@ -120,8 +139,8 @@ def _prepare_arguments_known_input(
 
 
 def _prepare_arguments_noisy_input(
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
 ) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
@@ -146,28 +165,24 @@ def _compute_robust_known_input(
     Y = np.fft.rfft(y_batched_matrices, axis=0)[freq.excited_bins]
 
     # Frequency response: (n_excited_bins, n_experiments, n_periods, ny, nu)
-    G_per_experiment_period = compute_frequency_response(U, Y)
+    G_per_experiment_and_period = compute_frequency_response(U, Y)
 
     # Average over periods: (n_excited_bins, n_experiments, ny, nu)
-    G_per_experiment = np.mean(G_per_experiment_period, axis=2)
+    G_per_experiment = np.mean(G_per_experiment_and_period, axis=2)
 
     # Best linear approximation (BLA): (n_excited_bins, ny, nu)
     G = np.mean(G_per_experiment, axis=1)
 
     # BLA total covariance: (n_excited_bins, ny * nu, ny * nu)
     if n_experiments > 1:
-        G_cov_total = compute_sample_covariance(
-            vec(G_per_experiment),  # (n_excited_bins, n_experiments, ny * nu)
-        ) / n_experiments
+        G_cov_total = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
     else:
         G_cov_total = None
 
     # BLA noise covariance: (n_excited_bins, ny * nu, ny * nu)
     if n_periods > 1:
         G_cov_noise = np.mean(
-            compute_sample_covariance(
-                vec(G_per_experiment_period),  # (n_excited_bins, n_experiments, n_periods, ny * nu)
-            ) / n_periods,
+            compute_sample_covariance(vec(G_per_experiment_and_period)) / n_periods,
             axis=1,
         ) / n_experiments
     else:
@@ -194,14 +209,11 @@ def _compute_robust_noisy_input(
 
     # Data noise covariance: (n_excited_bins, n_experiments, (ny + nu) * nu, (ny + nu) * nu)
     if n_periods > 1:
-        Z = np.concatenate(  # (n_excited_bins, n_experiments, n_periods, ny + nu, nu)
+        Z = np.concatenate(  # (n_samples, n_experiments, n_periods, ny + nu, nu)
             (Y, U),
             axis=-2,
         )
-
-        cov_Z_noise = compute_sample_covariance(
-            vec(Z),  # (n_excited_bins, n_experiments, n_periods, (ny + nu) * nu)
-        ) / n_periods
+        cov_Z_noise = compute_sample_covariance(vec(Z)) / n_periods
     else:
         cov_Z_noise = None
 
@@ -217,9 +229,7 @@ def _compute_robust_noisy_input(
 
     # BLA total covariance: (n_excited_bins, ny * nu, ny * nu)
     if n_experiments > 1:
-        G_cov_total = compute_sample_covariance(
-            vec(G_per_experiment),  # (n_excited_bins, n_experiments, ny * nu)
-        ) / n_experiments
+        G_cov_total = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
     else:
         G_cov_total = None
 

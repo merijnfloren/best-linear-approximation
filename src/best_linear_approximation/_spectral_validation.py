@@ -1,12 +1,12 @@
 from numbers import Real
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import NoExcitedBinsError
 from best_linear_approximation._misc import standardize_channels
-from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz
+from best_linear_approximation._typing import ExcitedBins, RealArray, SamplingFrequencyHz
 
 MultisineType = Literal["full", "odd", "even", "special-odd", "special-even", "special-mixed"]
 
@@ -34,7 +34,7 @@ def validate_sampling_frequency(fs: float) -> SamplingFrequencyHz:
 
 def resolve_excited_bins(
     excited_bins: NDArray[np.int_] | float,
-    signal: NDArray[np.floating[Any]],
+    signal: RealArray,
     fs: SamplingFrequencyHz,
 ) -> ExcitedBins:
     """Validate and resolve the supplied excited bins.
@@ -90,7 +90,7 @@ def resolve_excited_bins(
 
 
 def detect_excited_bins(
-    signal: NDArray[np.floating[Any]],
+    signal: RealArray,
     fs: SamplingFrequencyHz,
     relative_threshold: float,
     *,
@@ -106,7 +106,7 @@ def detect_excited_bins(
 
     Parameters
     ----------
-    signal : NDArray[np.floating[Any]]
+    signal : RealArray
         Real-valued time-domain input ``u`` or reference signal ``r`` with shape
         ``(n_samples, n_channels, ...)``. Prefer ``r`` when available, as it typically
         has a higher signal-to-noise ratio.

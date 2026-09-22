@@ -1,27 +1,26 @@
 import math
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import NamedTuple, cast
 
 import nonlinear_benchmarks as nlb
 import numpy as np
 from nonlinear_benchmarks.utilities import Input_output_data, cashed_download
-from numpy.typing import NDArray
 from scipy.io import loadmat
 
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._spectral_validation import detect_excited_bins
-from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz
+from best_linear_approximation._typing import ExcitedBins, RealArray, SamplingFrequencyHz
 
 
-class DataBLA[ReferenceSignal: NDArray[np.floating[Any]] | None](NamedTuple):
+class DataBLA[ReferenceSignal: RealArray | None](NamedTuple):
     r: ReferenceSignal
-    u: NDArray[np.floating[Any]]
-    y: NDArray[np.floating[Any]]
+    u: RealArray
+    y: RealArray
     fs: SamplingFrequencyHz
     excited_bins: ExcitedBins
 
 
-def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[NDArray[np.floating[Any]]]]:
+def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[RealArray]]:
     """Load selected F16 training datasets.
 
     This function downloads the F16 benchmark data if it is not already cached
@@ -76,7 +75,7 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[NDArray[np
     save_dir = Path(save_dir) / "F16GVT_Files" / "BenchmarkData"
 
     matfiles = list(Path(save_dir).glob("*.mat"))
-    bla_data: dict[str, DataBLA[NDArray[np.floating[Any]]]] = {}
+    bla_data: dict[str, DataBLA[RealArray]] = {}
     for file in sorted(matfiles):
         name = file.name
         if ("FullMSine" in name or "SpecialOddMSine" in name) and "Validation" not in name:

@@ -8,15 +8,16 @@ from best_linear_approximation._exceptions import (
     InsufficientExperimentsError,
     RealizationsTruncatedWarning,
 )
+from best_linear_approximation._typing import RealArray
 
 CANONICAL_SIGNAL_NDIM = 5
 MINIMUM_SIGNAL_NDIM = 3
 
 
 def to_experiment_layout(
-    signal: NDArray[np.floating[Any]],
+    signal: RealArray,
     nu: int,
-) -> NDArray[np.floating[Any]]:
+) -> RealArray:
     """Convert a signal from realization layout to five-dimensional experiment layout.
 
     Splits the realization axis of a signal with shape

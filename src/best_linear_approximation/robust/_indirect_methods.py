@@ -23,9 +23,7 @@ from best_linear_approximation._signal_validation import (
     SignalContract,
     SignalRanks,
 )
-from best_linear_approximation._typing import (
-    TimeDomainSignal,
-)
+from best_linear_approximation._typing import RealArray, TimeDomainSignal
 
 INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
@@ -46,9 +44,9 @@ INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 
 
 def known_reference(
-    r: NDArray[np.floating[Any]],
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    r: RealArray,
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> BLA:
@@ -56,12 +54,25 @@ def known_reference(
 
     Parameters
     ----------
-    r, u, y : NDArray[np.floating[Any]]
-        Periodic reference, input, and output measurements.
+    r : RealArray
+        Periodic reference measurements in realization layout with shape
+        ``(n_samples, nu, n_realizations)``, or experiment layout with shape
+        ``(n_samples, nu, nu, n_experiments)``.
+    u : RealArray
+        Periodic input measurements in realization layout with shape
+        ``(n_samples, nu, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, nu, nu, n_experiments, n_periods)``.
+    y : RealArray
+        Periodic output measurements in realization layout with shape
+        ``(n_samples, ny, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, ny, nu, n_experiments, n_periods)``.
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Excited DFT bins, or a relative detection threshold.
+        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
+        bins. A float in ``(0, 1)`` instead selects them automatically from
+        the clean reference ``r``: bins whose channel-averaged spectral
+        magnitude exceeds this fraction of the maximum magnitude are selected.
 
     Returns
     -------
@@ -75,9 +86,9 @@ def known_reference(
 
 
 def closed_loop(
-    r: NDArray[np.floating[Any]],
-    u: NDArray[np.floating[Any]],
-    y: NDArray[np.floating[Any]],
+    r: RealArray,
+    u: RealArray,
+    y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
 ) -> BLA:
@@ -85,12 +96,25 @@ def closed_loop(
 
     Parameters
     ----------
-    r, u, y : NDArray[np.floating[Any]]
-        Periodic reference, input, and output measurements.
+    r : RealArray
+        Periodic reference measurements in realization layout with shape
+        ``(n_samples, nu, n_realizations)``, or experiment layout with shape
+        ``(n_samples, nu, nu, n_experiments)``.
+    u : RealArray
+        Periodic input measurements in realization layout with shape
+        ``(n_samples, nu, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, nu, nu, n_experiments, n_periods)``.
+    y : RealArray
+        Periodic output measurements in realization layout with shape
+        ``(n_samples, ny, n_realizations, n_periods)``, or experiment layout
+        with shape ``(n_samples, ny, nu, n_experiments, n_periods)``.
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Excited DFT bins, or a relative detection threshold.
+        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
+        bins. A float in ``(0, 1)`` instead selects them automatically from
+        the clean reference ``r``: bins whose channel-averaged spectral
+        magnitude exceeds this fraction of the maximum magnitude are selected.
 
     Returns
     -------
@@ -127,9 +151,7 @@ def _compute_robust_indirect(
             (Y, U),
             axis=-2,
         )
-        cov_Z_noise = compute_sample_covariance(
-            vec(Z),  # (n_excited_bins, n_experiments, n_periods, (ny + nu) * nu)
-        ) / n_periods
+        cov_Z_noise = compute_sample_covariance(vec(Z)) / n_periods
     else:
         cov_Z_noise = None
 
@@ -165,10 +187,7 @@ def _compute_robust_indirect(
             (Y_R, U_R),
             axis=-2,
         )
-
-        cov_Z_R_total = compute_sample_covariance(
-            vec(Z_R),  # (n_excited_bins, n_experiments, (ny + nu) * nu)
-        ) / n_experiments
+        cov_Z_R_total = compute_sample_covariance(vec(Z_R)) / n_experiments
     else:
         cov_Z_R_total = None
 
