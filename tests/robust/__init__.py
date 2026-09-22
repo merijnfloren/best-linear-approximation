@@ -12,6 +12,7 @@ from multisine import (
 )
 from numpy.typing import NDArray
 
+from best_linear_approximation import BLA
 from best_linear_approximation._array_shapes import as_batched_matrices, to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
@@ -184,23 +185,48 @@ def generate_test_setup(
 
 
 def assert_bla_recovery_and_covariances(
-    G_estimated: NDArray[np.complexfloating[Any, Any]],
+    bla: BLA,
     G_true: NDArray[np.complexfloating[Any, Any]],
-    cov_G_total_estimated: NDArray[np.complexfloating[Any, Any]] | None,
-    cov_G_noise_estimated: NDArray[np.complexfloating[Any, Any]] | None,
     cov_G_total_expected: NDArray[np.complexfloating[Any, Any]],
     cov_G_noise_expected: NDArray[np.complexfloating[Any, Any]],
     n_experiments: int,
     n_periods: int,
 ) -> None:
-    """Verify BLA recovery and total and noise covariance estimates."""
+    """Verify BLA recovery and its covariance estimates."""
     n_total_covariance_dof = n_experiments - 1
     n_noise_covariance_dof = n_experiments * (n_periods - 1)
-    assert cov_G_total_estimated is not None
-    assert cov_G_noise_estimated is not None
-    _assert_plant_recovery(G_estimated, G_true, cov_G_total_expected)
-    _assert_covariance(cov_G_total_estimated, cov_G_total_expected, n_total_covariance_dof)
-    _assert_covariance(cov_G_noise_estimated, cov_G_noise_expected, n_noise_covariance_dof)
+    assert bla.G.cov_total is not None
+    assert bla.G.cov_noise is not None
+    assert bla.G.cov_nonlinear is not None
+    _assert_plant_recovery(bla.G.value, G_true, cov_G_total_expected)
+    _assert_covariance(bla.G.cov_total, cov_G_total_expected, n_total_covariance_dof)
+    _assert_covariance(bla.G.cov_noise, cov_G_noise_expected, n_noise_covariance_dof)
+    expected_shape = G_true.shape
+    assert bla.G.var_total is not None
+    assert bla.G.var_noise is not None
+    assert bla.G.var_nonlinear is not None
+    assert bla.G.std_total is not None
+    assert bla.G.std_noise is not None
+    assert bla.G.std_nonlinear is not None
+    assert bla.G.var_total.shape == expected_shape
+    assert bla.G.var_noise.shape == expected_shape
+    assert bla.G.var_nonlinear.shape == expected_shape
+    assert bla.G.std_total.shape == expected_shape
+    assert bla.G.std_noise.shape == expected_shape
+    assert bla.G.std_nonlinear.shape == expected_shape
+    for covariance, variances in (
+        (bla.G.cov_total, bla.G.var_total),
+        (bla.G.cov_noise, bla.G.var_noise),
+        (bla.G.cov_nonlinear, bla.G.var_nonlinear),
+    ):
+        expected_variances = np.diagonal(covariance, axis1=-2, axis2=-1).real
+        expected_variances = expected_variances.reshape(expected_shape, order="F")
+        np.testing.assert_array_equal(variances, expected_variances)
+    np.testing.assert_array_equal(bla.G.std_total, np.sqrt(bla.G.var_total))
+    np.testing.assert_array_equal(bla.G.std_noise, np.sqrt(bla.G.var_noise))
+    np.testing.assert_array_equal(bla.G.std_nonlinear, np.sqrt(bla.G.var_nonlinear))
+    nonlinear_eigenvalues = np.linalg.eigvalsh(bla.G.cov_nonlinear)
+    np.testing.assert_array_less(-1e-24, nonlinear_eigenvalues)
 
 
 def _assert_plant_recovery(

@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 from best_linear_approximation._covariance import propagate_covariance
 from best_linear_approximation._linear_algebra import kronecker_product
-from best_linear_approximation.robust._direct_methods import known_input, noisy_input
+from best_linear_approximation.robust import known_input, noisy_input
 
 from . import (
     assert_bla_recovery_and_covariances,
@@ -30,14 +30,25 @@ def test_known_input_covariances_require_repetitions(
     n_periods: int,
 ) -> None:
     """Verify known-input covariance availability and its warning."""
+    sampling_frequency = 8.0
+    expected_frequency = 1.0
     r, _, y = generate_covariance_availability_signals(n_experiments, n_periods)
     warning = covariance_unavailable_warning(n_experiments)
 
     with pytest.warns(warning):
-        G, cov_G_total, cov_G_noise = known_input(r, y, fs=8.0, excited_bins=np.array([1]))
+        bla = known_input(r, y, fs=sampling_frequency, excited_bins=np.array([1]))
 
-    assert G.shape == (1, 1, 1)
-    assert cov_G_total is None if n_experiments == 1 else cov_G_noise is None
+    assert bla.G.value.shape == (1, 1, 1)
+    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
+    assert bla.G.cov_nonlinear is None
+    assert bla.freq.fs == sampling_frequency
+    assert bla.freq.f_res == expected_frequency
+    assert bla.freq.f_min == expected_frequency
+    assert bla.freq.f_max == expected_frequency
+    expected_freqs = np.fft.rfftfreq(r.shape[0], d=1 / sampling_frequency)
+    np.testing.assert_array_equal(bla.freq.freqs, expected_freqs)
+    np.testing.assert_array_equal(bla.freq.excited_bins, np.array([1]))
+    np.testing.assert_array_equal(bla.freq.non_excited_bins, np.array([0, 2, 3, 4]))
 
 
 @covariance_availability_cases
@@ -50,10 +61,11 @@ def test_noisy_input_covariances_require_repetitions(
     warning = covariance_unavailable_warning(n_experiments)
 
     with pytest.warns(warning):
-        G, cov_G_total, cov_G_noise = noisy_input(u, y, fs=8.0, excited_bins=np.array([1]))
+        bla = noisy_input(u, y, fs=8.0, excited_bins=np.array([1]))
 
-    assert G.shape == (1, 1, 1)
-    assert cov_G_total is None if n_experiments == 1 else cov_G_noise is None
+    assert bla.G.value.shape == (1, 1, 1)
+    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
+    assert bla.G.cov_nonlinear is None
 
 
 @bla_recovery_cases
@@ -92,7 +104,7 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     u = to_time_domain(U[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
     y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
 
-    G_estimated, cov_G_total_estimated, cov_G_noise_estimated = known_input(
+    bla = known_input(
         u,
         y,
         multisine.freq.fs,
@@ -108,10 +120,8 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     )
 
     assert_bla_recovery_and_covariances(
-        G_estimated,
+        bla,
         G_true,
-        cov_G_total_estimated,
-        cov_G_noise_estimated,
         cov_G_total_expected,
         cov_G_noise_expected,
         n_experiments,
@@ -159,7 +169,7 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
 
     u = to_time_domain(U_measured, n_samples, multisine.freq.excited_bins)
     y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
-    G_estimated, cov_G_total_estimated, cov_G_noise_estimated = noisy_input(
+    bla = noisy_input(
         u,
         y,
         multisine.freq.fs,
@@ -175,10 +185,8 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
     )
 
     assert_bla_recovery_and_covariances(
-        G_estimated,
+        bla,
         G_true,
-        cov_G_total_estimated,
-        cov_G_noise_estimated,
         cov_G_total_expected,
         cov_G_noise_expected,
         n_experiments,

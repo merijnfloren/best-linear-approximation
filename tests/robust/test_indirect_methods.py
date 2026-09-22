@@ -11,8 +11,7 @@ from best_linear_approximation._exceptions import (
     PossibleTransientWarning,
 )
 from best_linear_approximation._linear_algebra import kronecker_product
-from best_linear_approximation.robust._direct_methods import noisy_input
-from best_linear_approximation.robust._indirect_methods import closed_loop, known_reference
+from best_linear_approximation.robust import closed_loop, known_reference, noisy_input
 
 from . import (
     assert_bla_recovery_and_covariances,
@@ -40,7 +39,7 @@ def test_closed_loop_covariances_require_repetitions(
     warning = covariance_unavailable_warning(n_experiments)
 
     with pytest.warns(warning):
-        G, cov_G_total, cov_G_noise = closed_loop(
+        bla = closed_loop(
             r,
             u,
             y,
@@ -48,21 +47,22 @@ def test_closed_loop_covariances_require_repetitions(
             excited_bins=np.array([1]),
         )
 
-    assert G.shape == (1, 1, 1)
-    assert cov_G_total is None if n_experiments == 1 else cov_G_noise is None
+    assert bla.G.value.shape == (1, 1, 1)
+    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
+    assert bla.G.cov_nonlinear is None
 
 
 def test_closed_loop_is_identical_to_known_reference() -> None:
     """Verify that closed loop returns the known-reference result unchanged."""
     r, u, y = generate_covariance_availability_signals(2, 2)
-    G_closed_loop, cov_G_total_closed_loop, cov_G_noise_closed_loop = closed_loop(
+    bla_closed_loop = closed_loop(
         r,
         u,
         y,
         fs=8.0,
         excited_bins=np.array([1]),
     )
-    G_known_reference, cov_G_total_known_reference, cov_G_noise_known_reference = known_reference(
+    bla_known_reference = known_reference(
         r,
         u,
         y,
@@ -70,13 +70,19 @@ def test_closed_loop_is_identical_to_known_reference() -> None:
         excited_bins=np.array([1]),
     )
 
-    assert cov_G_total_closed_loop is not None
-    assert cov_G_noise_closed_loop is not None
-    assert cov_G_total_known_reference is not None
-    assert cov_G_noise_known_reference is not None
-    np.testing.assert_array_equal(G_closed_loop, G_known_reference)
-    np.testing.assert_array_equal(cov_G_total_closed_loop, cov_G_total_known_reference)
-    np.testing.assert_array_equal(cov_G_noise_closed_loop, cov_G_noise_known_reference)
+    assert bla_closed_loop.G.cov_total is not None
+    assert bla_closed_loop.G.cov_noise is not None
+    assert bla_closed_loop.G.cov_nonlinear is not None
+    assert bla_known_reference.G.cov_total is not None
+    assert bla_known_reference.G.cov_noise is not None
+    assert bla_known_reference.G.cov_nonlinear is not None
+    np.testing.assert_array_equal(bla_closed_loop.G.value, bla_known_reference.G.value)
+    np.testing.assert_array_equal(bla_closed_loop.G.cov_total, bla_known_reference.G.cov_total)
+    np.testing.assert_array_equal(bla_closed_loop.G.cov_noise, bla_known_reference.G.cov_noise)
+    np.testing.assert_array_equal(
+        bla_closed_loop.G.cov_nonlinear,
+        bla_known_reference.G.cov_nonlinear,
+    )
 
 
 @bla_recovery_cases
@@ -137,13 +143,13 @@ def test_known_reference_reduces_input_measurement_bias(
                 y,
                 multisine.freq.fs,
                 multisine.freq.excited_bins,
-            )[0]
+            ).G.value
             noisy_input_estimate = noisy_input(
                 u,
                 y,
                 multisine.freq.fs,
                 multisine.freq.excited_bins,
-            )[0]
+            ).G.value
         known_reference_errors.append(known_reference_estimate - G_true)
         noisy_input_errors.append(noisy_input_estimate - G_true)
 
@@ -214,7 +220,7 @@ def test_closed_loop_recovers_plant_and_propagated_covariances(
     u = to_time_domain(U_measured, n_samples, multisine.freq.excited_bins)
     y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
 
-    G_estimated, cov_G_total_estimated, cov_G_noise_estimated = closed_loop(
+    bla = closed_loop(
         r,
         u,
         y,
@@ -244,10 +250,8 @@ def test_closed_loop_recovers_plant_and_propagated_covariances(
     )
 
     assert_bla_recovery_and_covariances(
-        G_estimated,
+        bla,
         G_true,
-        cov_G_total_estimated,
-        cov_G_noise_estimated,
         cov_G_total_expected,
         cov_G_noise_expected,
         n_experiments,

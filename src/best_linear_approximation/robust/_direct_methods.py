@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 
 from best_linear_approximation._argument_preparation import prepare_arguments
 from best_linear_approximation._array_shapes import as_batched_matrices
+from best_linear_approximation._bla import BLA, FrequencyInfo, create_bla, create_frequency_info
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._covariance import (
     compute_sample_covariance,
@@ -57,14 +58,27 @@ def known_input(
     y: NDArray[np.floating[Any]],
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]] | None,
-    NDArray[np.complexfloating[Any, Any]] | None,
-]:
-    u, y, fs, excited_bins = _prepare_arguments_known_input(u, y, fs, excited_bins)
+) -> BLA:
+    """Estimate a BLA when the input is known without measurement noise.
 
-    return _compute_robust_known_input(u, y, excited_bins)
+    Parameters
+    ----------
+    u, y : NDArray[np.floating[Any]]
+        Periodic input and output measurements.
+    fs : float
+        Sampling frequency in Hz.
+    excited_bins : NDArray[np.int_] or float, optional
+        Excited DFT bins, or a relative detection threshold.
+
+    Returns
+    -------
+    BLA
+        Frequency response and available total, noise, and nonlinear covariances.
+
+    """
+    u, y, fs, excited_bins = _prepare_arguments_known_input(u, y, fs, excited_bins)
+    freq = create_frequency_info(u.shape[0], fs, excited_bins)
+    return _compute_robust_known_input(u, y, freq)
 
 
 def noisy_input(
@@ -72,14 +86,27 @@ def noisy_input(
     y: NDArray[np.floating[Any]],
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]] | None,
-    NDArray[np.complexfloating[Any, Any]] | None,
-]:
-    u, y, fs, excited_bins = _prepare_arguments_noisy_input(u, y, fs, excited_bins)
+) -> BLA:
+    """Estimate a BLA from input and output measurements with input noise.
 
-    return _compute_robust_noisy_input(u, y, excited_bins)
+    Parameters
+    ----------
+    u, y : NDArray[np.floating[Any]]
+        Periodic input and output measurements.
+    fs : float
+        Sampling frequency in Hz.
+    excited_bins : NDArray[np.int_] or float, optional
+        Excited DFT bins, or a relative detection threshold.
+
+    Returns
+    -------
+    BLA
+        Frequency response and available total, noise, and nonlinear covariances.
+
+    """
+    u, y, fs, excited_bins = _prepare_arguments_noisy_input(u, y, fs, excited_bins)
+    freq = create_frequency_info(u.shape[0], fs, excited_bins)
+    return _compute_robust_noisy_input(u, y, freq)
 
 
 def _prepare_arguments_known_input(
@@ -105,12 +132,8 @@ def _prepare_arguments_noisy_input(
 def _compute_robust_known_input(
     u: TimeDomainSignal,
     y: TimeDomainSignal,
-    excited_bins: ExcitedBins,
-) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]] | None,
-    NDArray[np.complexfloating[Any, Any]] | None,
-]:
+    freq: FrequencyInfo,
+) -> BLA:
     """Compute the best linear approximation and its covariances from known input data."""
     n_experiments, n_periods = y.shape[-2:]
 
@@ -119,8 +142,8 @@ def _compute_robust_known_input(
     y_batched_matrices = as_batched_matrices(y)  # (n_samples, n_experiments, n_periods, ny, nu)
 
     # To excited frequencies
-    U = np.fft.rfft(u_batched_matrices, axis=0)[excited_bins]
-    Y = np.fft.rfft(y_batched_matrices, axis=0)[excited_bins]
+    U = np.fft.rfft(u_batched_matrices, axis=0)[freq.excited_bins]
+    Y = np.fft.rfft(y_batched_matrices, axis=0)[freq.excited_bins]
 
     # Frequency response: (n_excited_bins, n_experiments, n_periods, ny, nu)
     G_per_experiment_period = compute_frequency_response(U, Y)
@@ -150,18 +173,14 @@ def _compute_robust_known_input(
     else:
         G_cov_noise = None
 
-    return G, G_cov_total, G_cov_noise
+    return create_bla(freq, G, G_cov_total, G_cov_noise)
 
 
 def _compute_robust_noisy_input(
     u: TimeDomainSignal,
     y: TimeDomainSignal,
-    excited_bins: ExcitedBins,
-) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]] | None,
-    NDArray[np.complexfloating[Any, Any]] | None,
-]:
+    freq: FrequencyInfo,
+) -> BLA:
     """Compute the best linear approximation and its covariances from noisy input data."""
     ny, nu, n_experiments, n_periods = y.shape[-4:]
 
@@ -170,8 +189,8 @@ def _compute_robust_noisy_input(
     y_batched_matrices = as_batched_matrices(y)  # (n_samples, n_experiments, n_periods, ny, nu)
 
     # To excited frequencies
-    U = np.fft.rfft(u_batched_matrices, axis=0)[excited_bins]
-    Y = np.fft.rfft(y_batched_matrices, axis=0)[excited_bins]
+    U = np.fft.rfft(u_batched_matrices, axis=0)[freq.excited_bins]
+    Y = np.fft.rfft(y_batched_matrices, axis=0)[freq.excited_bins]
 
     # Data noise covariance: (n_excited_bins, n_experiments, (ny + nu) * nu, (ny + nu) * nu)
     if n_periods > 1:
@@ -209,9 +228,7 @@ def _compute_robust_noisy_input(
         n_excited_bins = G.shape[0]
 
         # Batched U^{-T}
-        U_inv_transpose = np.linalg.solve(
-            U, np.eye(nu),
-        ).mT if nu > 1 else 1 / U
+        U_inv_transpose = np.linalg.solve(U, np.eye(nu)).mT if nu > 1 else 1 / U
 
         # Batched V = [I_ny, -G]
         I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, n_experiments, ny, ny))
@@ -227,110 +244,135 @@ def _compute_robust_noisy_input(
     else:
         G_cov_noise = None
 
-    return G, G_cov_total, G_cov_noise
+    return create_bla(freq, G, G_cov_total, G_cov_noise)
 
 
-# if __name__ == "__main__":
-#     from best_linear_approximation._dataloader import (
-#         load_f16,
-#         load_fine_steering_mirror,
-#         load_parallel_wiener_hammerstein,
-#         load_silverbox,
-#     )
+if __name__ == "__main__":
+    from best_linear_approximation._dataloader import (
+        load_f16,
+        load_fine_steering_mirror,
+        load_parallel_wiener_hammerstein,
+        load_silverbox,
+    )
 
-    # data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
+    data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
 
-    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    G = bla.G.value
+    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
-    # import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
 
-    # def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
-    #     return 20 * np.log10(np.abs(magnitude))
+    def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+        return 20 * np.log10(np.abs(magnitude))
 
-    # plt.figure()
-    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    # plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
-    # plt.legend()
-    # plt.show()
+    plt.figure()
+    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+    plt.plot(to_db(std_total[:, 0, 0]), label="std_total[0, 0]")
+    plt.plot(to_db(std_noise[:, 0, 0]), label="std_noise[0, 0]")
+    plt.plot(to_db(std_nonlinear[:, 0, 0]), label="std_nonlinear[0, 0]", linestyle="--")
+    plt.legend()
+    plt.show()
 
     # data = load_silverbox()["train SB multisine"]
-    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs)
+    # bla = noisy_input(data.u, data.y, data.fs)
+    # G = bla.G.value
+    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
 
     # plt.figure()
     # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
+    # plt.plot(to_db(std_total[:, 0, 0]), label="std_total[0, 0]")
+    # plt.plot(to_db(std_noise[:, 0, 0]), label="std_noise[0, 0]")
+    # plt.plot(to_db(std_nonlinear[:, 0, 0]), label="std_nonlinear[0, 0]")
     # plt.legend()
     # plt.show()
 
-    # data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
-    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
+    bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    G = bla.G.value
+    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
 
-    # # create 3x1 subplots
-    # plt.figure()
-    # plt.subplot(3, 1, 1)
-    # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    # plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    # plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
-    # plt.legend()
-    # plt.subplot(3, 1, 2)
-    # plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-    # plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
-    # plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
-    # plt.legend()
-    # plt.subplot(3, 1, 3)
-    # plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-    # plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
-    # plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
-    # plt.legend()
-    # plt.show()
+    # create 3x1 subplots
+    plt.figure()
+    plt.subplot(3, 1, 1)
+    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+    plt.plot(to_db(std_total[:, 0, 0]), label="std_total[0, 0]")
+    plt.plot(to_db(std_noise[:, 0, 0]), label="std_noise[0, 0]")
+    plt.plot(to_db(std_nonlinear[:, 0, 0]), label="std_nonlinear[0, 0]")
+    plt.legend()
+    plt.subplot(3, 1, 2)
+    plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
+    plt.plot(to_db(std_total[:, 1, 0]), label="std_total[1, 0]")
+    plt.plot(to_db(std_noise[:, 1, 0]), label="std_noise[1, 0]")
+    plt.plot(to_db(std_nonlinear[:, 1, 0]), label="std_nonlinear[1, 0]")
+    plt.legend()
+    plt.subplot(3, 1, 3)
+    plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
+    plt.plot(to_db(std_total[:, 2, 0]), label="std_total[2, 0]")
+    plt.plot(to_db(std_noise[:, 2, 0]), label="std_noise[2, 0]")
+    plt.plot(to_db(std_nonlinear[:, 2, 0]), label="std_nonlinear[2, 0]")
+    plt.legend()
+    plt.show()
 
     # data = load_f16()["F16Data_FullMSine_Level3.mat"]
-    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    # bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    # G = bla.G.value
+    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
     # # create 3x1 subplots
     # plt.figure()
     # plt.subplot(3, 1, 1)
     # plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
 
-    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+    # plt.plot(to_db(std_total[:, 0, 0]), label="std_total[0, 0]")
+    # plt.plot(to_db(std_noise[:, 0, 0]), label="std_noise[0, 0]")
+    # plt.plot(to_db(std_nonlinear[:, 0, 0]), label="std_nonlinear[0, 0]")
     # plt.legend()
     # plt.subplot(3, 1, 2)
     # plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+    # plt.plot(to_db(std_total[:, 1, 0]), label="std_total[1, 0]")
+    # plt.plot(to_db(std_noise[:, 1, 0]), label="std_noise[1, 0]")
+    # plt.plot(to_db(std_nonlinear[:, 1, 0]), label="std_nonlinear[1, 0]")
     # plt.legend()
     # plt.subplot(3, 1, 3)
     # plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-    # plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+    # plt.plot(to_db(std_total[:, 2, 0]), label="std_total[2, 0]")
+    # plt.plot(to_db(std_noise[:, 2, 0]), label="std_noise[2, 0]")
+    # plt.plot(to_db(std_nonlinear[:, 2, 0]), label="std_nonlinear[2, 0]")
     # plt.legend()
     # plt.show()
 
 
-    # data = load_fine_steering_mirror()["train 300mV"]
-    # G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    data = load_fine_steering_mirror()["train 300mV"]
+    bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    G = bla.G.value
+    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
-    # # create 3x3 subplots
-    # plt.figure()
-    # for i in range(3):
-    #     plt.subplot(3, 3, i * 3 + 1)
-    #     plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
-    #     plt.legend()
-    #     plt.subplot(3, 3, i * 3 + 2)
-    #     plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
-    #     plt.legend()
-    #     plt.subplot(3, 3, i * 3 + 3)
-    #     plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
-    #     plt.legend()
-    # plt.show()
+    # create 3x3 subplots
+    plt.figure()
+    for i in range(3):
+        plt.subplot(3, 3, i * 3 + 1)
+        plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
+        plt.plot(to_db(std_total[:, i, 0]), label=f"std_total[{i}, 0]")
+        plt.plot(to_db(std_noise[:, i, 0]), label=f"std_noise[{i}, 0]")
+        plt.plot(to_db(std_nonlinear[:, i, 0]), label=f"std_nonlinear[{i}, 0]")
+        plt.legend()
+        plt.subplot(3, 3, i * 3 + 2)
+        plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
+        plt.plot(to_db(std_total[:, i, 1]), label=f"std_total[{i}, 1]")
+        plt.plot(to_db(std_noise[:, i, 1]), label=f"std_noise[{i}, 1]")
+        plt.plot(to_db(std_nonlinear[:, i, 1]), label=f"std_nonlinear[{i}, 1]")
+        plt.legend()
+        plt.subplot(3, 3, i * 3 + 3)
+        plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
+        plt.plot(to_db(std_total[:, i, 2]), label=f"std_total[{i}, 2]")
+        plt.plot(to_db(std_noise[:, i, 2]), label=f"std_noise[{i}, 2]")
+        plt.plot(to_db(std_nonlinear[:, i, 2]), label=f"std_nonlinear[{i}, 2]")
+        plt.legend()
+    plt.show()
 
     # u, y = np.load("src/best_linear_approximation/robust/input_data.npy"), np.load("src/best_linear_approximation/robust/output_data.npy")
     # # # Process data
@@ -343,7 +385,9 @@ def _compute_robust_noisy_input(
     # # u_train = u[:, :, :R, :]
     # # y_train = y[:, :, :R, :]
 
-    # G, cov_total, cov_noise = noisy_input(u, y, 6400)
+    # bla = noisy_input(u, y, 6400)
+    # G = bla.G.value
+    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
 
     # def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
     #     return 20 * np.log10(np.abs(magnitude))
@@ -355,81 +399,86 @@ def _compute_robust_noisy_input(
     # for i in range(3):
     #     plt.subplot(3, 3, i * 3 + 1)
     #     plt.plot(to_db(G[:, i, 0]), label=f"G[{i}, 0]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 0]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 0]")
+    #     plt.plot(to_db(std_total[:, i, 0]), label=f"std_total[{i}, 0]")
+    #     plt.plot(to_db(std_noise[:, i, 0]), label=f"std_noise[{i}, 0]")
+    #     plt.plot(to_db(std_nonlinear[:, i, 0]), label=f"std_nonlinear[{i}, 0]")
     #     plt.legend()
     #     plt.subplot(3, 3, i * 3 + 2)
     #     plt.plot(to_db(G[:, i, 1]), label=f"G[{i}, 1]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 1]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 1]")
+    #     plt.plot(to_db(std_total[:, i, 1]), label=f"std_total[{i}, 1]")
+    #     plt.plot(to_db(std_noise[:, i, 1]), label=f"std_noise[{i}, 1]")
+    #     plt.plot(to_db(std_nonlinear[:, i, 1]), label=f"std_nonlinear[{i}, 1]")
     #     plt.legend()
     #     plt.subplot(3, 3, i * 3 + 3)
     #     plt.plot(to_db(G[:, i, 2]), label=f"G[{i}, 2]")
-    #     plt.plot(to_db(np.sqrt(cov_total[:, i, i])), label=f"cov_total[{i}, 2]")
-    #     plt.plot(to_db(np.sqrt(cov_noise[:, i, i])), label=f"cov_noise[{i}, 2]")
+    #     plt.plot(to_db(std_total[:, i, 2]), label=f"std_total[{i}, 2]")
+    #     plt.plot(to_db(std_noise[:, i, 2]), label=f"std_noise[{i}, 2]")
+    #     plt.plot(to_db(std_nonlinear[:, i, 2]), label=f"std_nonlinear[{i}, 2]")
     #     plt.legend()
     # plt.show()
 
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+# if __name__ == "__main__":
+#     import matplotlib.pyplot as plt
 
-    from best_linear_approximation._dataloader import load_f16
-
-
-    def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
-        return 20 * np.log10(np.abs(magnitude))
+#     from best_linear_approximation._dataloader import load_f16
 
 
-    data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
-    r = data.r.mean(axis=-1)
-    G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+#     def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+#         return 20 * np.log10(np.abs(magnitude))
+
+
+#     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
+#     r = data.r.mean(axis=-1)
+#     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+#     G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
     
-    print(data.u.shape)
+#     print(data.u.shape)
 
 
-    # create 3x1 subplots
-    plt.figure()
-    plt.subplot(3, 1, 1)
-    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-    plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
-    plt.legend()
-    plt.subplot(3, 1, 2)
-    plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-    plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
-    plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
-    plt.legend()
-    plt.subplot(3, 1, 3)
-    plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-    plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
-    plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
-    plt.legend()
-    plt.show()
+#     # create 3x1 subplots
+#     plt.figure()
+#     plt.subplot(3, 1, 1)
+#     plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+#     plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
+#     plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+#     plt.legend()
+#     plt.subplot(3, 1, 2)
+#     plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
+#     plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
+#     plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+#     plt.legend()
+#     plt.subplot(3, 1, 3)
+#     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
+#     plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
+#     plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+#     plt.legend()
+#     plt.show()
 
-    data = load_f16()["F16Data_FullMSine_Level3.mat"]
-    r = data.r.mean(axis=-1)
-    G, cov_total, cov_noise = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+#     data = load_f16()["F16Data_FullMSine_Level3.mat"]
+#     r = data.r.mean(axis=-1)
+#     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+#     G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
 
-    # create 3x1 subplots
-    plt.figure()
-    plt.subplot(3, 1, 1)
-    plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
+#     # create 3x1 subplots
+#     plt.figure()
+#     plt.subplot(3, 1, 1)
+#     plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
 
-    plt.plot(to_db(np.sqrt(8*cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
-    plt.legend()
-    plt.subplot(3, 1, 2)
-    plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-    plt.plot(to_db(np.sqrt(8*cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
-    plt.legend()
-    plt.subplot(3, 1, 3)
-    plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-    plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
-    plt.legend()
-    plt.show()
+#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+#     plt.legend()
+#     plt.subplot(3, 1, 2)
+#     plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
+#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+#     plt.legend()
+#     plt.subplot(3, 1, 3)
+#     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
+#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+#     plt.legend()
+#     plt.show()
     
-        # create 3x1 subplots
-    print(data.y.shape)
-    plt.figure()
-    plt.plot(np.squeeze(data.y[:, 0, 0, :]), label="G[0, 0]")
-    plt.show()
+#         # create 3x1 subplots
+#     print(data.y.shape)
+#     plt.figure()
+#     plt.plot(np.squeeze(data.y[:, 0, 0, :]), label="G[0, 0]")
+#     plt.show()
