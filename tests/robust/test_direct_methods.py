@@ -1,11 +1,9 @@
-from typing import Any
-
 import numpy as np
 import pytest
-from numpy.typing import NDArray
 
 from best_linear_approximation._covariance import propagate_covariance
 from best_linear_approximation._linear_algebra import kronecker_product
+from best_linear_approximation._typing import ComplexArray
 from best_linear_approximation.robust import known_input, noisy_input
 
 from . import (
@@ -39,8 +37,8 @@ def test_known_input_covariances_require_repetitions(
         bla = known_input(r, y, fs=sampling_frequency, excited_bins=np.array([1]))
 
     assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
-    assert bla.G.cov_nonlinear is None
+    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
+    assert bla.G.nonlinear.cov is None
     assert bla.freq.fs == sampling_frequency
     assert bla.freq.f_res == expected_frequency
     assert bla.freq.f_min == expected_frequency
@@ -64,8 +62,8 @@ def test_noisy_input_covariances_require_repetitions(
         bla = noisy_input(u, y, fs=8.0, excited_bins=np.array([1]))
 
     assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
-    assert bla.G.cov_nonlinear is None
+    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
+    assert bla.G.nonlinear.cov is None
 
 
 @bla_recovery_cases
@@ -195,16 +193,16 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
 
 
 def _compute_oracle_covariances(
-    U: NDArray[np.complexfloating[Any, Any]],
-    cov_noise: NDArray[np.complexfloating[Any, Any]],
-    cov_nonlinear: NDArray[np.complexfloating[Any, Any]],
+    U: ComplexArray,
+    cov_noise: ComplexArray,
+    cov_nonlinear: ComplexArray,
     n_periods: int,
-    G_true: NDArray[np.complexfloating[Any, Any]] | None = None,
+    G_true: ComplexArray | None = None,
     *,
     known_input: bool = False,
 ) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]],
+    ComplexArray,
+    ComplexArray,
 ]:
     """Compute expected total and noise BLA covariances.
 

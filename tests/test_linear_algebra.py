@@ -1,6 +1,10 @@
 import numpy as np
 
-from best_linear_approximation._linear_algebra import kronecker_product, right_solve
+from best_linear_approximation._linear_algebra import (
+    kronecker_product,
+    right_solve,
+    solve_left_kronecker_product,
+)
 
 
 def test_kronecker_product_matches_numpy_for_matrices() -> None:
@@ -37,3 +41,26 @@ def test_right_solve_broadcasts_leading_axes() -> None:
         inferred_solution,
         np.broadcast_to(known_solution, left.shape),
     )
+
+
+def test_solve_left_kronecker_product_solves_known_complex_system() -> None:
+    left = np.array([[2.0 + 1.0j, 1.0j], [1.0, 3.0 - 2.0j]])
+    known_solution = np.arange(4, dtype=complex).reshape(2, 2) + 1.0j
+    right = np.kron(left, known_solution)
+
+    inferred_solution = solve_left_kronecker_product(left, right)
+
+    np.testing.assert_allclose(inferred_solution, known_solution)
+
+
+def test_solve_left_kronecker_product_broadcasts_leading_axes() -> None:
+    left = np.broadcast_to(np.array([[2.0, 1.0], [1.0, 3.0]]), (1, 2, 2))
+    known_solution = np.arange(8, dtype=complex).reshape(2, 1, 2, 2)
+    right = kronecker_product(
+        np.broadcast_to(left, (2, 1, 2, 2)),
+        known_solution,
+    )
+
+    inferred_solution = solve_left_kronecker_product(left, right)
+
+    np.testing.assert_allclose(inferred_solution, known_solution)

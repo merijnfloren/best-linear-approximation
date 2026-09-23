@@ -1,34 +1,39 @@
-[project]
-name = "best-linear-approximation"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-authors = [
-    { email = "merijn.floren@gmail.com" }
-]
-requires-python = ">=3.12"
-dependencies = [
-    "ipykernel>=7.3.0",
-    "numpy>=2.5.2",
-]
-
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "matplotlib>=3.11.1",
-    "multisine>=0.1.0",
-    "nonlinear-benchmarks>=1.0.1",
-    "pandas>=3.0.5",
-    "pyqt5>=5.15.11",
-    "pytest>=9.1.1",
-    "ruff>=0.16.3",
+  "matplotlib>=3.11.1",
+  "multisine>=0.1.0",
+  "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
+  "pandas>=3.0.5",
+  "pyqt5>=5.15.11",
+  "pytest>=9.1.1",
+  "ruff>=0.16.3",
+  "scipy>=1.17.0",
+  "toml-sort>=0.25.0"
 ]
 
-[tool.uv.sources]
-nonlinear-benchmarks = { git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git" }
+[project]
+name = "best-linear-approximation"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+  { email = "merijn.floren@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+  "ipykernel>=7.3.0",
+  "numpy>=2.5.2"
+]
+
+[project.optional-dependencies]
+benchmarks = [
+    "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
+    "scipy>=1.17.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -36,21 +41,20 @@ line-length = 100
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "CPY001",   # missing-copyright-notice
-    "D203",     # incorrect-blank-line-before-class
-    "D213",     # multi-line-summary-second-line
-    "N806",     # non-lowercase-variable-in-function
+  "CPY001", # missing-copyright-notice
+  "D203", # incorrect-blank-line-before-class
+  "D213", # multi-line-summary-second-line
+  "N806" # non-lowercase-variable-in-function
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "D100",     # undocumented-public-module
-    "D103",     # undocumented-public-function
-    "FBT001",   # boolean-type-hint-positional-argument
-    "INP001",   # implicit-namespace-package
-    "PLR0913",  # too-many-arguments
-    "PLR0917",  # too-many-positional-arguments
-    "N803",     # invalid-argument-name
-    "S101",     # assert
+  "D100", # undocumented-public-module
+  "D103", # undocumented-public-function
+  "FBT001", # boolean-type-hint-positional-argument
+  "INP001", # implicit-namespace-package
+  "PLR0913", # too-many-arguments
+  "PLR0917", # too-many-positional-arguments
+  "N803", # invalid-argument-name
+  "S101" # assert
 ]
-

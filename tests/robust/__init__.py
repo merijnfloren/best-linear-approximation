@@ -1,7 +1,6 @@
 """Shared fixtures and assertions for robust-method tests."""
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pytest
@@ -12,12 +11,13 @@ from multisine import (
 )
 from numpy.typing import NDArray
 
-from best_linear_approximation import BLA
+from best_linear_approximation import NonparametricBLA
 from best_linear_approximation._array_shapes import as_batched_matrices, to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
     TotalCovarianceUnavailableWarning,
 )
+from best_linear_approximation._typing import ComplexArray, RealArray
 
 covariance_availability_cases = pytest.mark.parametrize(
     ("n_experiments", "n_periods"),
@@ -51,8 +51,8 @@ class TestSetup:
     """Shared multisine excitation and true frequency response for a test."""
 
     multisine: RandomPhaseMultisine
-    U: NDArray[np.complexfloating[Any, Any]]
-    G_true: NDArray[np.complexfloating[Any, Any]]
+    U: ComplexArray
+    G_true: ComplexArray
     n_experiments: int
     n_periods: int
     n_samples: int
@@ -62,7 +62,7 @@ def generate_correlation_matrix(
     rng: np.random.Generator,
     n_excited_bins: int,
     n_channels: int,
-) -> NDArray[np.complexfloating[Any, Any]]:
+) -> ComplexArray:
     """Generate per-frequency complex correlation matrices with unit diagonal."""
     shape = (n_excited_bins, n_channels, n_channels)
     mixing_matrix = rng.normal(size=shape) + 1j * rng.normal(size=shape)
@@ -75,7 +75,7 @@ def generate_correlation_matrix(
 def generate_covariance_availability_signals(
     n_experiments: int,
     n_periods: int,
-) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+) -> tuple[RealArray, RealArray, RealArray]:
     """Generate a single-input, single-output data set with one excited bin."""
     n_samples = 8
     samples = np.arange(n_samples)
@@ -94,12 +94,12 @@ def covariance_unavailable_warning(n_experiments: int) -> type[Warning]:
 
 
 def sample_disturbances(
-    covariance: NDArray[np.complexfloating[Any, Any]],
+    covariance: ComplexArray,
     rng: np.random.Generator,
     n_experiments: int,
     n_periods: int,
     nu: int,
-) -> NDArray[np.complexfloating[Any, Any]]:
+) -> ComplexArray:
     """Sample recordings with the prescribed channel covariance."""
     n_excited_bins, n_channels = covariance.shape[:2]
     eigenvalues, eigenvectors = np.linalg.eigh(covariance)
@@ -110,10 +110,10 @@ def sample_disturbances(
 
 
 def to_time_domain(
-    spectrum: NDArray[np.complexfloating[Any, Any]],
+    spectrum: ComplexArray,
     n_samples: int,
     excited_bins: NDArray[np.int_],
-) -> NDArray[np.float64]:
+) -> RealArray:
     """Convert excited spectra to real periods in the public realization layout."""
     n_freqs = n_samples // 2 + 1
     full_spectrum = np.zeros((n_freqs, *spectrum.shape[1:]), dtype=complex)
@@ -185,54 +185,54 @@ def generate_test_setup(
 
 
 def assert_bla_recovery_and_covariances(
-    bla: BLA,
-    G_true: NDArray[np.complexfloating[Any, Any]],
-    cov_G_total_expected: NDArray[np.complexfloating[Any, Any]],
-    cov_G_noise_expected: NDArray[np.complexfloating[Any, Any]],
+    bla: NonparametricBLA,
+    G_true: ComplexArray,
+    G_total_cov_expected: ComplexArray,
+    G_noise_cov_expected: ComplexArray,
     n_experiments: int,
     n_periods: int,
 ) -> None:
     """Verify BLA recovery and its covariance estimates."""
     n_total_covariance_dof = n_experiments - 1
     n_noise_covariance_dof = n_experiments * (n_periods - 1)
-    assert bla.G.cov_total is not None
-    assert bla.G.cov_noise is not None
-    assert bla.G.cov_nonlinear is not None
-    _assert_plant_recovery(bla.G.value, G_true, cov_G_total_expected)
-    _assert_covariance(bla.G.cov_total, cov_G_total_expected, n_total_covariance_dof)
-    _assert_covariance(bla.G.cov_noise, cov_G_noise_expected, n_noise_covariance_dof)
+    assert bla.G.total.cov is not None
+    assert bla.G.noise.cov is not None
+    assert bla.G.nonlinear.cov is not None
+    _assert_plant_recovery(bla.G.value, G_true, G_total_cov_expected)
+    _assert_covariance(bla.G.total.cov, G_total_cov_expected, n_total_covariance_dof)
+    _assert_covariance(bla.G.noise.cov, G_noise_cov_expected, n_noise_covariance_dof)
     expected_shape = G_true.shape
-    assert bla.G.var_total is not None
-    assert bla.G.var_noise is not None
-    assert bla.G.var_nonlinear is not None
-    assert bla.G.std_total is not None
-    assert bla.G.std_noise is not None
-    assert bla.G.std_nonlinear is not None
-    assert bla.G.var_total.shape == expected_shape
-    assert bla.G.var_noise.shape == expected_shape
-    assert bla.G.var_nonlinear.shape == expected_shape
-    assert bla.G.std_total.shape == expected_shape
-    assert bla.G.std_noise.shape == expected_shape
-    assert bla.G.std_nonlinear.shape == expected_shape
+    assert bla.G.total.var is not None
+    assert bla.G.noise.var is not None
+    assert bla.G.nonlinear.var is not None
+    assert bla.G.total.std is not None
+    assert bla.G.noise.std is not None
+    assert bla.G.nonlinear.std is not None
+    assert bla.G.total.var.shape == expected_shape
+    assert bla.G.noise.var.shape == expected_shape
+    assert bla.G.nonlinear.var.shape == expected_shape
+    assert bla.G.total.std.shape == expected_shape
+    assert bla.G.noise.std.shape == expected_shape
+    assert bla.G.nonlinear.std.shape == expected_shape
     for covariance, variances in (
-        (bla.G.cov_total, bla.G.var_total),
-        (bla.G.cov_noise, bla.G.var_noise),
-        (bla.G.cov_nonlinear, bla.G.var_nonlinear),
+        (bla.G.total.cov, bla.G.total.var),
+        (bla.G.noise.cov, bla.G.noise.var),
+        (bla.G.nonlinear.cov, bla.G.nonlinear.var),
     ):
         expected_variances = np.diagonal(covariance, axis1=-2, axis2=-1).real
         expected_variances = expected_variances.reshape(expected_shape, order="F")
         np.testing.assert_array_equal(variances, expected_variances)
-    np.testing.assert_array_equal(bla.G.std_total, np.sqrt(bla.G.var_total))
-    np.testing.assert_array_equal(bla.G.std_noise, np.sqrt(bla.G.var_noise))
-    np.testing.assert_array_equal(bla.G.std_nonlinear, np.sqrt(bla.G.var_nonlinear))
-    nonlinear_eigenvalues = np.linalg.eigvalsh(bla.G.cov_nonlinear)
+    np.testing.assert_array_equal(bla.G.total.std, np.sqrt(bla.G.total.var))
+    np.testing.assert_array_equal(bla.G.noise.std, np.sqrt(bla.G.noise.var))
+    np.testing.assert_array_equal(bla.G.nonlinear.std, np.sqrt(bla.G.nonlinear.var))
+    nonlinear_eigenvalues = np.linalg.eigvalsh(bla.G.nonlinear.cov)
     np.testing.assert_array_less(-1e-24, nonlinear_eigenvalues)
 
 
 def _assert_plant_recovery(
-    G_estimated: NDArray[np.complexfloating[Any, Any]],
-    G_true: NDArray[np.complexfloating[Any, Any]],
-    expected_covariance: NDArray[np.complexfloating[Any, Any]],
+    G_estimated: ComplexArray,
+    G_true: ComplexArray,
+    expected_covariance: ComplexArray,
 ) -> None:
     """Check recovery using the prescribed covariance of the final BLA estimate."""
     assert G_estimated.shape == G_true.shape
@@ -243,8 +243,8 @@ def _assert_plant_recovery(
 
 
 def _assert_covariance(
-    estimated: NDArray[np.complexfloating[Any, Any]],
-    expected: NDArray[np.complexfloating[Any, Any]],
+    estimated: ComplexArray,
+    expected: ComplexArray,
     n_degrees_of_freedom: int,
 ) -> None:
     """Check entries, allowing for finite-sample covariance scatter."""

@@ -1,11 +1,8 @@
 import math
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, NoReturn, cast
 
-import nonlinear_benchmarks as nlb
 import numpy as np
-from nonlinear_benchmarks.utilities import Input_output_data, cashed_download
-from scipy.io import loadmat
 
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._spectral_validation import detect_excited_bins
@@ -61,6 +58,12 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[RealArray]
         - ``F16Data_SpecialOddMSine_Level3.mat``
 
     """
+    try:
+        from nonlinear_benchmarks.utilities import cashed_download
+        from scipy.io import loadmat
+    except ImportError as error:
+        _raise_missing_benchmark_dependency(error)
+
     url = "https://data.4tu.nl/file/b6dc643b-ecc6-437c-8a8a-1681650ec3fe/5414dfdc-6e8d-4208-be6e-fa553de9866f"
     download_size = 148455295
 
@@ -148,6 +151,8 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
         - ``train 300mV``
     
     """
+    nlb = _load_benchmark_module()
+
     # Quantities taken from the Fine Steering Mirror paper
     f_max = 3000  # [Hz]
     fs = 6400  # [Hz]
@@ -155,7 +160,7 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
 
     excited_bins = np.arange(1, math.ceil(f_max / (fs / n_samples)))
 
-    nlb_data = cast("list[Input_output_data]", nlb.FineSteeringMirror()[0])
+    nlb_data = cast("list[Any]", nlb.FineSteeringMirror()[0])
     bla_data: dict[str, DataBLA[None]] = {}
     for data in nlb_data:
         u, y = data.u, data.y
@@ -201,13 +206,15 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
         - ``ParWH-amp-4``
 
     """
+    nlb = _load_benchmark_module()
+
     nu, ny = 1, 1
     n_samples, n_realizations, n_periods = 16384, 20, 2
 
     fs = SamplingFrequencyHz(78_000)
     amplitudes = [0, 1, 2, 3, 4]
 
-    nlb_data = cast("list[Input_output_data]", nlb.ParWH()[0])
+    nlb_data = cast("list[Any]", nlb.ParWH()[0])
     bla_data: dict[str, DataBLA[None]] = {}
     for amplitude in amplitudes:
         nlb_data_per_amplitude = [
@@ -275,7 +282,8 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
         - ``train SB multisine``
 
     """
-    nlb_data = cast("Input_output_data", nlb.Silverbox()[0])
+    nlb = _load_benchmark_module()
+    nlb_data = cast(Any, nlb.Silverbox()[0])
     u, y = nlb_data.u, nlb_data.y
 
     nu, ny = 1, 1
@@ -311,6 +319,24 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
     y = y_matrix.reshape(n_samples, ny, n_realizations, n_periods)
 
     return {nlb_data.name: DataBLA(r=None, u=u, y=y, fs=fs, excited_bins=excited_bins)}
+
+
+def _load_benchmark_module() -> Any:
+    """Import the optional nonlinear-benchmarks package."""
+    try:
+        import nonlinear_benchmarks as nlb
+    except ImportError as error:
+        _raise_missing_benchmark_dependency(error)
+
+    return nlb
+
+
+def _raise_missing_benchmark_dependency(error: ImportError) -> NoReturn:
+    msg = (
+        "Benchmark loaders require the optional dependencies. "
+        "Install best-linear-approximation[benchmarks]."
+    )
+    raise ImportError(msg) from error
 
 
 if __name__ == "__main__":

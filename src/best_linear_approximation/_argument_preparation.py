@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from best_linear_approximation._array_shapes import to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
-    PossibleMultiAmplitudeWarning,
+    PossibleExcitationAmplitudeMismatchWarning,
     PossibleTransientWarning,
     TotalCovarianceUnavailableWarning,
 )
@@ -88,7 +88,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     canonical five-dimensional experiment layout, verifies the sampling frequency,
     and resolves the excited bins. Warns when the data is insufficient to estimate the
     noise or total covariance, and when the data contains possible non-steady-state
-    behavior or excitation with different amplitude levels.
+    behavior or excitation-amplitude changes between realizations.
 
     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
     interpreted as a threshold for detecting the excited bins, using ``r`` if available
@@ -117,9 +117,8 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
         _warn_noise_covariance_unavailable()
 
     max_bin = excited_bins[-1]
-    n_realizations = nu * n_experiments
-    if n_realizations > 1:
-        _warn_if_excitation_amplitudes_mismatch(r if r is not None else u, max_bin)
+    if n_experiments > 1:
+        _warn_if_excitation_amplitude_mismatch(r if r is not None else u, max_bin)
     if n_periods > 1:
         _warn_if_output_spectra_mismatch(y, max_bin)
 
@@ -185,23 +184,25 @@ def _warn_if_output_spectra_mismatch(y: RealArray, max_bin: int) -> None:
         warnings.warn(msg, PossibleTransientWarning, stacklevel=2)
 
 
-def _warn_if_excitation_amplitudes_mismatch(
+def _warn_if_excitation_amplitude_mismatch(
     signal: RealArray,
     max_bin: int,
 ) -> None:
-    """Warn when adjacent realization magnitude spectra differ by more than 2.5%.
+    """Warn when excitation magnitude changes between adjacent realizations.
 
-    Requires ``nu * n_experiments > 1``.
+    Requires ``n_experiments > 1``.
 
-    Only ``rfft`` bins from DC through ``max_bin`` are used. The canonical input and
-    experiment axes are merged into realization layout using column-major ordering.
+    Only ``rfft`` bins from DC through ``max_bin`` are used. The input and experiment
+    axes are merged into realization layout using column-major ordering. Adjacent
+    realizations are compared separately for every physical input channel. Each
+    channel is standardized before comparison, so fixed amplitude differences between
+    channels do not trigger a warning.
     """
-    _, n_channels, nu, n_experiments, n_periods = signal.shape
-    n_realizations = nu * n_experiments
-    if n_realizations <= 1:
+    n_experiments = signal.shape[-2]
+    if n_experiments <= 1:
         msg = (
-            "signal must contain more than one realization, "
-            f"got nu={nu} and n_experiments={n_experiments}."
+            "signal must contain more than one experiment, "
+            f"got n_experiments={n_experiments}."
         )
         raise ValueError(msg)
 
@@ -209,9 +210,10 @@ def _warn_if_excitation_amplitudes_mismatch(
 
     stop_bin = max_bin + 1
     spectrum = np.fft.rfft(signal, axis=0)[:stop_bin]
-    n_excited_freqs = spectrum.shape[0]
+    n_bins, n_channels, nu, _, n_periods = spectrum.shape
+    n_realizations = nu * n_experiments
     realization_spectrum = spectrum.reshape(
-        n_excited_freqs,
+        n_bins,
         n_channels,
         n_realizations,
         n_periods,
@@ -222,7 +224,7 @@ def _warn_if_excitation_amplitudes_mismatch(
     later_magnitude_spectrum = realization_magnitude_spectrum[..., 1:, :]
     spectral_difference = later_magnitude_spectrum - realization_magnitude_spectrum[..., :-1, :]
 
-    reduction_axes = (0, 1, 3)
+    reduction_axes = (0, 3)
     difference_rms = rms(spectral_difference, axis=reduction_axes)
     reference_rms = rms(later_magnitude_spectrum, axis=reduction_axes)
     relative_difference = np.divide(
@@ -234,29 +236,30 @@ def _warn_if_excitation_amplitudes_mismatch(
 
     exceeds_threshold = relative_difference > MINIMUM_RELATIVE_REALIZATION_MISMATCH
     if np.any(exceeds_threshold):
-        values = ", ".join(f"{value:.2%}" for value in relative_difference)
+        values = ", ".join(f"{value:.2%}" for value in relative_difference.ravel())
         affected_pairs = np.flatnonzero(exceeds_threshold)
         n_realization_pairs = n_realizations - 1
         n_affected_pairs = affected_pairs.size
-        if n_realization_pairs == 1:
+        n_channel_realization_pairs = n_channels * n_realization_pairs
+        if n_channel_realization_pairs == 1:
             scope = "the"
-            realization_pair_label = "realization pair"
+            channel_realization_pair_label = "channel-realization pair"
             difference_label = "difference"
         else:
             scope = (
-                f"all {n_realization_pairs}"
-                if n_affected_pairs == n_realization_pairs
-                else f"{n_affected_pairs} of {n_realization_pairs}"
+                f"all {n_channel_realization_pairs}"
+                if n_affected_pairs == n_channel_realization_pairs
+                else f"{n_affected_pairs} of {n_channel_realization_pairs}"
             )
-            realization_pair_label = "realization pairs"
+            channel_realization_pair_label = "channel-realization pairs"
             difference_label = "differences"
         msg = (
-            f"The relative mismatch between {scope} adjacent {realization_pair_label} "
+            f"The relative mismatch between {scope} adjacent {channel_realization_pair_label} "
             f"exceeds the threshold of {MINIMUM_RELATIVE_REALIZATION_MISMATCH:.2%}. This "
-            "may indicate excitation with different amplitude levels. Aggregated relative "
+            "may indicate an excitation-amplitude change between realizations. Aggregated relative "
             f"{difference_label}: [{values}]."
         )
-        warnings.warn(msg, PossibleMultiAmplitudeWarning, stacklevel=2)
+        warnings.warn(msg, PossibleExcitationAmplitudeMismatchWarning, stacklevel=2)
 
 
 def _warn_noise_covariance_unavailable() -> None:

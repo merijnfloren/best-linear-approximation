@@ -24,8 +24,8 @@ class NoiseCovarianceUnavailableWarning(UserWarning):
     """Warn that noise covariance cannot be estimated from one period."""
 
 
-class PossibleMultiAmplitudeWarning(UserWarning):
-    """Warn that excitation data may contain multiple amplitude levels."""
+class PossibleExcitationAmplitudeMismatchWarning(UserWarning):
+    """Warn that excitation amplitude may change between adjacent realizations."""
 
 
 class PossibleTransientWarning(UserWarning):

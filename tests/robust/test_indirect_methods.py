@@ -1,16 +1,15 @@
 import warnings
-from typing import Any
 
 import numpy as np
 import pytest
-from numpy.typing import NDArray
 
 from best_linear_approximation._covariance import propagate_covariance
 from best_linear_approximation._exceptions import (
-    PossibleMultiAmplitudeWarning,
+    PossibleExcitationAmplitudeMismatchWarning,
     PossibleTransientWarning,
 )
 from best_linear_approximation._linear_algebra import kronecker_product
+from best_linear_approximation._typing import ComplexArray
 from best_linear_approximation.robust import closed_loop, known_reference, noisy_input
 
 from . import (
@@ -48,8 +47,8 @@ def test_closed_loop_covariances_require_repetitions(
         )
 
     assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.cov_total is None if n_experiments == 1 else bla.G.cov_noise is None
-    assert bla.G.cov_nonlinear is None
+    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
+    assert bla.G.nonlinear.cov is None
 
 
 def test_closed_loop_is_identical_to_known_reference() -> None:
@@ -70,18 +69,18 @@ def test_closed_loop_is_identical_to_known_reference() -> None:
         excited_bins=np.array([1]),
     )
 
-    assert bla_closed_loop.G.cov_total is not None
-    assert bla_closed_loop.G.cov_noise is not None
-    assert bla_closed_loop.G.cov_nonlinear is not None
-    assert bla_known_reference.G.cov_total is not None
-    assert bla_known_reference.G.cov_noise is not None
-    assert bla_known_reference.G.cov_nonlinear is not None
+    assert bla_closed_loop.G.total.cov is not None
+    assert bla_closed_loop.G.noise.cov is not None
+    assert bla_closed_loop.G.nonlinear.cov is not None
+    assert bla_known_reference.G.total.cov is not None
+    assert bla_known_reference.G.noise.cov is not None
+    assert bla_known_reference.G.nonlinear.cov is not None
     np.testing.assert_array_equal(bla_closed_loop.G.value, bla_known_reference.G.value)
-    np.testing.assert_array_equal(bla_closed_loop.G.cov_total, bla_known_reference.G.cov_total)
-    np.testing.assert_array_equal(bla_closed_loop.G.cov_noise, bla_known_reference.G.cov_noise)
+    np.testing.assert_array_equal(bla_closed_loop.G.total.cov, bla_known_reference.G.total.cov)
+    np.testing.assert_array_equal(bla_closed_loop.G.noise.cov, bla_known_reference.G.noise.cov)
     np.testing.assert_array_equal(
-        bla_closed_loop.G.cov_nonlinear,
-        bla_known_reference.G.cov_nonlinear,
+        bla_closed_loop.G.nonlinear.cov,
+        bla_known_reference.G.nonlinear.cov,
     )
 
 
@@ -135,7 +134,7 @@ def test_known_reference_reduces_input_measurement_bias(
         y = to_time_domain(Y_true[:, :, None] + Y_noise, n_samples, multisine.freq.excited_bins)
 
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", PossibleMultiAmplitudeWarning)
+            warnings.simplefilter("ignore", PossibleExcitationAmplitudeMismatchWarning)
             warnings.simplefilter("ignore", PossibleTransientWarning)
             known_reference_estimate = known_reference(
                 r,
@@ -260,17 +259,22 @@ def test_closed_loop_recovers_plant_and_propagated_covariances(
 
 
 def _compute_indirect_oracle_covariances(
-    U_R: NDArray[np.complexfloating[Any, Any]],
-    R: NDArray[np.complexfloating[Any, Any]],
-    G_true: NDArray[np.complexfloating[Any, Any]],
-    cov_Z_noise: NDArray[np.complexfloating[Any, Any]],
-    cov_Z_nonlinear: NDArray[np.complexfloating[Any, Any]],
+    U_R: ComplexArray,
+    R: ComplexArray,
+    G_true: ComplexArray,
+    cov_Z_noise: ComplexArray,
+    cov_Z_nonlinear: ComplexArray,
     n_periods: int,
 ) -> tuple[
-    NDArray[np.complexfloating[Any, Any]],
-    NDArray[np.complexfloating[Any, Any]],
+    ComplexArray,
+    ComplexArray,
 ]:
-    """Compute expected total and noise BLA covariances for indirect data."""
+    """Compute expected total and noise BLA covariances for indirect data.
+    
+    Based on Eq. (2-77) in Pintelon, R., and Schoukens, J. (2012).
+    *System Identification: A Frequency Domain Approach*, 2nd ed.,
+    Wiley-IEEE Press, ISBN 978-0-470-64037-1.
+    """
     n_excited_bins, n_experiments, nu, _ = R.shape
     ny = G_true.shape[1]
     n_channels = ny + nu

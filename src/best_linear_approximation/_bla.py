@@ -1,10 +1,12 @@
 """Result types for best linear approximation estimates."""
 
 from dataclasses import dataclass
+from typing import Self
 
 import numpy as np
 from numpy.typing import NDArray
 
+from best_linear_approximation._covariance import project_onto_positive_semidefinite
 from best_linear_approximation._typing import ComplexArray, RealArray
 
 
@@ -41,93 +43,102 @@ class FrequencyInfo:
 
 
 @dataclass(frozen=True)
+class SpectralUncertainty:
+    """Uncertainty of a frequency-domain quantity.
+
+    Attributes
+    ----------
+    cov : ComplexArray or None
+        Joint covariance matrix at every frequency. ``None`` when the available
+        experiment design cannot estimate the joint covariance.
+    var : RealArray or None
+        Component-wise variance of the frequency-domain quantity. When ``cov``
+        is available, this is its diagonal reshaped to the quantity's value
+        dimensions using column-wise ordering. Otherwise, it is a pooled
+        component-wise variance estimate when that is identifiable without a
+        joint covariance matrix.
+    std : RealArray or None
+        Component-wise standard deviation, equal to ``sqrt(var)``.
+
+    """
+
+    cov: ComplexArray | None
+    _value_shape: tuple[int, ...]
+    _pooled_var: RealArray | None
+
+    def __post_init__(self) -> None:
+        """Validate that uncertainty has a single source for marginal variances."""
+        if self.cov is not None and self._pooled_var is not None:
+            msg = "cov and _pooled_var cannot both be provided."
+            raise ValueError(msg)
+
+        if self._pooled_var is not None and self._pooled_var.shape[1:] != self._value_shape:
+            msg = "_pooled_var dimensions must match _value_shape."
+            raise ValueError(msg)
+
+    @classmethod
+    def from_cov(
+        cls,
+        covariance: ComplexArray,
+        value_shape: tuple[int, ...],
+    ) -> Self:
+        """Create covariance-backed uncertainty for a frequency-domain quantity."""
+        return cls(covariance, value_shape, None)
+
+    @classmethod
+    def from_pooled_var(cls, variance: RealArray) -> Self:
+        """Create uncertainty from a pooled component-wise variance estimate."""
+        return cls(None, variance.shape[1:], variance)
+
+    @classmethod
+    def unavailable(cls, value_shape: tuple[int, ...]) -> Self:
+        """Create uncertainty with no estimable covariance or variance."""
+        return cls(None, value_shape, None)
+
+    @property
+    def var(self) -> RealArray | None:
+        """Component-wise variance of the frequency-domain quantity."""
+        if self.cov is None:
+            return self._pooled_var
+
+        variance = np.diagonal(self.cov, axis1=-2, axis2=-1).real
+        return variance.reshape(self.cov.shape[0], *self._value_shape, order="F")
+
+    @property
+    def std(self) -> RealArray | None:
+        """Component-wise standard deviation of the frequency-domain quantity."""
+        if self.var is None:
+            return None
+
+        return np.sqrt(self.var)
+
+
+@dataclass(frozen=True)
 class FrequencyResponse:
-    """Frequency response estimate and its covariance estimates.
+    """Frequency response estimate and its uncertainty estimates.
 
     Attributes
     ----------
     value : ComplexArray
         Frequency response, with shape ``(n_excited_bins, ny, nu)``.
-    cov_total : ComplexArray or None
-        Total covariance of ``value``. ``None`` when fewer than two experiments
-        are available. Has shape ``(n_excited_bins, ny * nu, ny * nu)``.
-    cov_noise : ComplexArray or None
-        Noise covariance of ``value``. ``None`` when fewer than two periods are
-        available. Has shape ``(n_excited_bins, ny * nu, ny * nu)``.
-    cov_nonlinear : ComplexArray or None
-        Nonlinear-distortion covariance, equal to ``cov_total - cov_noise``.
-        ``None`` when either covariance is unavailable. Has shape
-        ``(n_excited_bins, ny * nu, ny * nu)``.
-    var_total, var_noise, var_nonlinear : RealArray or None
-        Per-frequency variances of each response element, with shape
-        ``(n_excited_bins, ny, nu)``. Each is the corresponding covariance
-        diagonal, reshaped from column-wise vectorization.
-    std_total, std_noise, std_nonlinear : RealArray or None
-        Per-frequency standard deviations of each response element, with shape
-        ``(n_excited_bins, ny, nu)``.
+    total : SpectralUncertainty
+        Total distortion uncertainty of ``value``.
+    noise : SpectralUncertainty
+        Noise distortion uncertainty of ``value``.
+    nonlinear : SpectralUncertainty
+        Nonlinear distortion uncertainty of ``value``.
 
     """
 
     value: ComplexArray
-    cov_total: ComplexArray | None
-    cov_noise: ComplexArray | None
-    cov_nonlinear: ComplexArray | None
-
-    @property
-    def var_total(self) -> RealArray | None:
-        """Total variance for every frequency-response element."""
-        return self._covariance_diagonal(self.cov_total)
-
-    @property
-    def var_noise(self) -> RealArray | None:
-        """Noise variance for every frequency-response element."""
-        return self._covariance_diagonal(self.cov_noise)
-
-    @property
-    def var_nonlinear(self) -> RealArray | None:
-        """Nonlinear-distortion variance for every frequency-response element."""
-        return self._covariance_diagonal(self.cov_nonlinear)
-
-    @property
-    def std_total(self) -> RealArray | None:
-        """Total standard deviation for every frequency-response element."""
-        return self._standard_deviation(self.var_total)
-
-    @property
-    def std_noise(self) -> RealArray | None:
-        """Noise standard deviation for every frequency-response element."""
-        return self._standard_deviation(self.var_noise)
-
-    @property
-    def std_nonlinear(self) -> RealArray | None:
-        """Nonlinear-distortion standard deviation for every response element."""
-        return self._standard_deviation(self.var_nonlinear)
-
-    def _covariance_diagonal(
-        self,
-        covariance: ComplexArray | None,
-    ) -> RealArray | None:
-        """Reshape a covariance diagonal into the response matrix layout."""
-        if covariance is None:
-            return None
-
-        variances = np.diagonal(covariance, axis1=-2, axis2=-1).real
-        return variances.reshape(*self.value.shape[:-2], *self.value.shape[-2:], order="F")
-
-    @staticmethod
-    def _standard_deviation(
-        variance: RealArray | None,
-    ) -> RealArray | None:
-        """Return the standard deviation associated with a variance array."""
-        if variance is None:
-            return None
-
-        return np.sqrt(variance)
+    total: SpectralUncertainty
+    noise: SpectralUncertainty
+    nonlinear: SpectralUncertainty
 
 
 @dataclass(frozen=True)
-class BLA:
-    """Best linear approximation estimate.
+class NonparametricBLA:
+    """Nonparametric best linear approximation estimate.
 
     Attributes
     ----------
@@ -170,25 +181,33 @@ def create_bla(
     frequency_response: ComplexArray,
     cov_total: ComplexArray | None,
     cov_noise: ComplexArray | None,
-) -> BLA:
-    """Create a BLA result and derive its nonlinear-distortion covariance."""
+) -> NonparametricBLA:
+    """Create a nonparametric BLA and derive its nonlinear-distortion covariance."""
     if cov_total is None or cov_noise is None:
-        cov_G_nonlinear = None
+        cov_nonlinear = None
     else:
-        cov_G_nonlinear = cov_total - cov_noise
+        cov_nonlinear = cov_total - cov_noise
+        cov_nonlinear = project_onto_positive_semidefinite(cov_nonlinear)
 
-        # Remove negative-eigenvalue artifacts to enforce positive semidefiniteness
-        hermitian_covariance = (cov_G_nonlinear + cov_G_nonlinear.conj().mT) / 2
-        eigenvalues, eigenvectors = np.linalg.eigh(hermitian_covariance)
-        nonnegative_eigenvalues = np.maximum(eigenvalues, 0)
-        cov_G_nonlinear = (
-            eigenvectors * nonnegative_eigenvalues[..., None, :]
-        ) @ eigenvectors.conj().mT
-
+    value_shape = frequency_response.shape[1:]
+    total = _create_spectral_uncertainty(cov_total, value_shape)
+    noise = _create_spectral_uncertainty(cov_noise, value_shape)
+    nonlinear = _create_spectral_uncertainty(cov_nonlinear, value_shape)
     frequency_response_estimate = FrequencyResponse(
         frequency_response,
-        cov_total,
-        cov_noise,
-        cov_G_nonlinear,
+        total,
+        noise,
+        nonlinear,
     )
-    return BLA(frequency_info, frequency_response_estimate)
+    return NonparametricBLA(frequency_info, frequency_response_estimate)
+
+
+def _create_spectral_uncertainty(
+    covariance: ComplexArray | None,
+    value_shape: tuple[int, ...],
+) -> SpectralUncertainty:
+    """Create uncertainty from an optional covariance."""
+    if covariance is None:
+        return SpectralUncertainty.unavailable(value_shape)
+
+    return SpectralUncertainty.from_cov(covariance, value_shape)

@@ -27,3 +27,15 @@ def propagate_covariance(covariance: NDArray[Any], jacobian: NDArray[Any]) -> ND
     return jacobian @ covariance @ jacobian.conj().mT
 
 
+def project_onto_positive_semidefinite(covariance: NDArray[Any]) -> NDArray[Any]:
+    """Project covariance matrices onto the positive-semidefinite cone.
+
+    The final two axes of ``covariance`` are treated as square matrix axes; leading
+    axes are treated as batch axes. The matrices are first Hermitian symmetrized,
+    then negative eigenvalues are set to zero.
+    """
+    hermitian_covariance = (covariance + covariance.conj().mT) / 2
+    eigenvalues, eigenvectors = np.linalg.eigh(hermitian_covariance)
+    nonnegative_eigenvalues = np.maximum(eigenvalues, 0)
+    return (eigenvectors * nonnegative_eigenvalues[..., None, :]) @ eigenvectors.conj().mT
+

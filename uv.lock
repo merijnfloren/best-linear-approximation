@@ -40,6 +40,12 @@ dependencies = [
     { name = "numpy" },
 ]
 
+[package.optional-dependencies]
+benchmarks = [
+    { name = "nonlinear-benchmarks" },
+    { name = "scipy" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "matplotlib" },
@@ -49,23 +55,30 @@ dev = [
     { name = "pyqt5" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "scipy" },
+    { name = "toml-sort" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "ipykernel", specifier = ">=7.3.0" },
+    { name = "nonlinear-benchmarks", marker = "extra == 'benchmarks'", git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git?rev=f9fb3883086870a27b31917ccde1f78c95d53cb2" },
     { name = "numpy", specifier = ">=2.5.2" },
+    { name = "scipy", marker = "extra == 'benchmarks'", specifier = ">=1.17.0" },
 ]
+provides-extras = ["benchmarks"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "multisine", specifier = ">=0.1.0" },
-    { name = "nonlinear-benchmarks", git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git" },
+    { name = "nonlinear-benchmarks", git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git?rev=f9fb3883086870a27b31917ccde1f78c95d53cb2" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pyqt5", specifier = ">=5.15.11" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.3" },
+    { name = "scipy", specifier = ">=1.17.0" },
+    { name = "toml-sort", specifier = ">=0.25.0" },
 ]
 
 [[package]]
@@ -750,7 +763,7 @@ wheels = [
 [[package]]
 name = "nonlinear-benchmarks"
 version = "1.0.1"
-source = { git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git#f9fb3883086870a27b31917ccde1f78c95d53cb2" }
+source = { git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git?rev=f9fb3883086870a27b31917ccde1f78c95d53cb2#f9fb3883086870a27b31917ccde1f78c95d53cb2" }
 dependencies = [
     { name = "numpy" },
     { name = "progressbar" },
@@ -1328,6 +1341,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29519eb6884dd1415ecb53b0e934862d3559ddcb7e20b/stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9", size = 44707, upload-time = "2023-09-30T13:58:05.479Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/7b/ce1eafaf1a76852e2ec9b22edecf1daa58175c090266e9f6c64afcd81d91/stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695", size = 24521, upload-time = "2023-09-30T13:58:03.53Z" },
+]
+
+[[package]]
+name = "toml-sort"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tomlrt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1f/f4/7221164c2984af53c18dd9f1d267ca7da660b40bc6b9a436b67ae17fc3ff/toml_sort-0.25.0.tar.gz", hash = "sha256:08ffe893feba7dc1773c61046b76f63561a6204e0162cd067c4a0d681d9198c7", size = 13197, upload-time = "2026-09-12T21:58:05.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/b8/dc28651955aa2fdb24ef6f7ac7bcc6784f60d31630a0af1bd6d3626e4db8/toml_sort-0.25.0-py3-none-any.whl", hash = "sha256:96de33d49795a730297a1a5cba75ad9f251a7b07e75002f8a2fcc127fa7d43bd", size = 12561, upload-time = "2026-09-12T21:58:05.916Z" },
+]
+
+[[package]]
+name = "tomlrt"
+version = "2.2.13"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/f1/806011897b459ed816d184e9fd1c6e5bf9705f70a29e2957731ecccb71a2/tomlrt-2.2.13.tar.gz", hash = "sha256:b60ab600646e3f4e72fb05d6d03cf1595625aa182da14685b9f60e8fbc7c1694", size = 470641, upload-time = "2026-09-20T20:22:11.106Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a1/88/363ff0b1d082d9dd543fe7173c83bbddf7429b5832abff24ee2b8c4b62db/tomlrt-2.2.13-py3-none-any.whl", hash = "sha256:b4c7b64408e0788893f41b692d21a086f6173eadd69d518a98686d3ce6e1a85a", size = 153152, upload-time = "2026-09-20T20:22:09.425Z" },
 ]
 
 [[package]]

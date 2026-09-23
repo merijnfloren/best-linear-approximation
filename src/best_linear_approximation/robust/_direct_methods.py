@@ -6,7 +6,12 @@ from numpy.typing import NDArray
 
 from best_linear_approximation._argument_preparation import prepare_arguments
 from best_linear_approximation._array_shapes import as_batched_matrices
-from best_linear_approximation._bla import BLA, FrequencyInfo, create_bla, create_frequency_info
+from best_linear_approximation._bla import (
+    FrequencyInfo,
+    NonparametricBLA,
+    create_bla,
+    create_frequency_info,
+)
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._covariance import (
     compute_sample_covariance,
@@ -59,7 +64,7 @@ def known_input(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> BLA:
+) -> NonparametricBLA:
     """Estimate a BLA when the input is known without measurement noise.
 
     Parameters
@@ -82,7 +87,7 @@ def known_input(
 
     Returns
     -------
-    BLA
+    NonparametricBLA
         Frequency response and available total, noise, and nonlinear covariances.
 
     """
@@ -96,7 +101,7 @@ def noisy_input(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> BLA:
+) -> NonparametricBLA:
     """Estimate a BLA from input and output measurements with input noise.
 
     Parameters
@@ -119,7 +124,7 @@ def noisy_input(
 
     Returns
     -------
-    BLA
+    NonparametricBLA
         Frequency response and available total, noise, and nonlinear covariances.
 
     """
@@ -128,33 +133,13 @@ def noisy_input(
     return _compute_robust_noisy_input(u, y, freq)
 
 
-def _prepare_arguments_known_input(
-    u: RealArray,
-    y: RealArray,
-    fs: float,
-    excited_bins: NDArray[np.int_] | float,
-) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
-    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
-    return prepare_arguments(None, u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)[1:]
-
-
-def _prepare_arguments_noisy_input(
-    u: RealArray,
-    y: RealArray,
-    fs: float,
-    excited_bins: NDArray[np.int_] | float,
-) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
-    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
-    return prepare_arguments(None, u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)[1:]
-
-
 def _compute_robust_known_input(
     u: TimeDomainSignal,
     y: TimeDomainSignal,
     freq: FrequencyInfo,
-) -> BLA:
+) -> NonparametricBLA:
     """Compute the best linear approximation and its covariances from known input data."""
-    n_experiments, n_periods = y.shape[-2:]
+    _, _, n_experiments, n_periods = y.shape[-4:]
 
     # Arrange the arrays for NumPy's batched linear algebra broadcasting
     u_batched_matrices = as_batched_matrices(u)  # (n_samples, n_experiments, 1, nu, nu)
@@ -182,9 +167,9 @@ def _compute_robust_known_input(
     # BLA noise covariance: (n_excited_bins, ny * nu, ny * nu)
     if n_periods > 1:
         G_cov_noise = np.mean(
-            compute_sample_covariance(vec(G_per_experiment_and_period)) / n_periods,
+            compute_sample_covariance(vec(G_per_experiment_and_period)),
             axis=1,
-        ) / n_experiments
+        ) / (n_experiments * n_periods)
     else:
         G_cov_noise = None
 
@@ -195,7 +180,7 @@ def _compute_robust_noisy_input(
     u: TimeDomainSignal,
     y: TimeDomainSignal,
     freq: FrequencyInfo,
-) -> BLA:
+) -> NonparametricBLA:
     """Compute the best linear approximation and its covariances from noisy input data."""
     ny, nu, n_experiments, n_periods = y.shape[-4:]
 
@@ -237,7 +222,7 @@ def _compute_robust_noisy_input(
     if cov_Z_noise is not None:
         n_excited_bins = G.shape[0]
 
-        # Batched U^{-T}
+        # Batched U^(-T)
         U_inv_transpose = np.linalg.solve(U, np.eye(nu)).mT if nu > 1 else 1 / U
 
         # Batched V = [I_ny, -G]
@@ -257,6 +242,26 @@ def _compute_robust_noisy_input(
     return create_bla(freq, G, G_cov_total, G_cov_noise)
 
 
+def _prepare_arguments_known_input(
+    u: RealArray,
+    y: RealArray,
+    fs: float,
+    excited_bins: NDArray[np.int_] | float,
+) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
+    return prepare_arguments(None, u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)[1:]
+
+
+def _prepare_arguments_noisy_input(
+    u: RealArray,
+    y: RealArray,
+    fs: float,
+    excited_bins: NDArray[np.int_] | float,
+) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
+    """Validate and resolve all arguments according to :func:`prepare_arguments`."""
+    return prepare_arguments(None, u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)[1:]
+
+
 if __name__ == "__main__":
     from best_linear_approximation._dataloader import (
         load_f16,
@@ -269,7 +274,7 @@ if __name__ == "__main__":
 
     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
     G = bla.G.value
-    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
     import matplotlib.pyplot as plt
 
@@ -288,7 +293,7 @@ if __name__ == "__main__":
     # data = load_silverbox()["train SB multisine"]
     # bla = noisy_input(data.u, data.y, data.fs)
     # G = bla.G.value
-    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    # std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
 
     # plt.figure()
@@ -302,7 +307,7 @@ if __name__ == "__main__":
     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
     G = bla.G.value
-    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
 
     # create 3x1 subplots
@@ -330,7 +335,7 @@ if __name__ == "__main__":
     # data = load_f16()["F16Data_FullMSine_Level3.mat"]
     # bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
     # G = bla.G.value
-    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    # std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
     # # create 3x1 subplots
     # plt.figure()
@@ -359,7 +364,7 @@ if __name__ == "__main__":
     data = load_fine_steering_mirror()["train 300mV"]
     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
     G = bla.G.value
-    std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
     # create 3x3 subplots
     plt.figure()
@@ -397,7 +402,7 @@ if __name__ == "__main__":
 
     # bla = noisy_input(u, y, 6400)
     # G = bla.G.value
-    # std_total, std_noise, std_nonlinear = bla.G.std_total, bla.G.std_noise, bla.G.std_nonlinear
+    # std_total, std_noise, std_nonlinear = bla.G.total.std, bla.G.noise.std, bla.G.nonlinear.std
 
     # def to_db(magnitude: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
     #     return 20 * np.log10(np.abs(magnitude))
@@ -441,7 +446,7 @@ if __name__ == "__main__":
 #     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
 #     r = data.r.mean(axis=-1)
 #     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-#     G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
+#     G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
     
 #     print(data.u.shape)
 
@@ -468,7 +473,7 @@ if __name__ == "__main__":
 #     data = load_f16()["F16Data_FullMSine_Level3.mat"]
 #     r = data.r.mean(axis=-1)
 #     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-#     G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
+#     G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
 
 #     # create 3x1 subplots
 #     plt.figure()

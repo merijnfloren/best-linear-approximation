@@ -6,7 +6,12 @@ from numpy.typing import NDArray
 
 from best_linear_approximation._argument_preparation import prepare_arguments
 from best_linear_approximation._array_shapes import as_batched_matrices
-from best_linear_approximation._bla import BLA, FrequencyInfo, create_bla, create_frequency_info
+from best_linear_approximation._bla import (
+    FrequencyInfo,
+    NonparametricBLA,
+    create_bla,
+    create_frequency_info,
+)
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._covariance import (
     compute_sample_covariance,
@@ -49,7 +54,7 @@ def known_reference(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> BLA:
+) -> NonparametricBLA:
     """Estimate a BLA using a known reference as an instrumental variable.
 
     Parameters
@@ -76,7 +81,7 @@ def known_reference(
 
     Returns
     -------
-    BLA
+    NonparametricBLA
         Frequency response and available total, noise, and nonlinear covariances.
 
     """
@@ -91,7 +96,7 @@ def closed_loop(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
-) -> BLA:
+) -> NonparametricBLA:
     """Estimate a closed-loop BLA using a known reference.
 
     Parameters
@@ -118,7 +123,7 @@ def closed_loop(
 
     Returns
     -------
-    BLA
+    NonparametricBLA
         Frequency response and available total, noise, and nonlinear covariances.
 
     """
@@ -130,7 +135,7 @@ def _compute_robust_indirect(
     u: TimeDomainSignal,
     y: TimeDomainSignal,
     freq: FrequencyInfo,
-) -> BLA:
+) -> NonparametricBLA:
     """Compute the best linear approximation and its covariances from noisy input data."""
     ny, nu, n_experiments, n_periods = y.shape[-4:]
 
@@ -143,7 +148,6 @@ def _compute_robust_indirect(
     R = np.fft.rfft(r_batched_matrices, axis=0)[freq.excited_bins]
     U = np.fft.rfft(u_batched_matrices, axis=0)[freq.excited_bins]
     Y = np.fft.rfft(y_batched_matrices, axis=0)[freq.excited_bins]
-    n_excited_bins = freq.excited_bins.size
 
     # Data noise covariance: (n_excited_bins, n_experiments, (ny + nu) * nu, (ny + nu) * nu)
     if n_periods > 1:
@@ -168,6 +172,7 @@ def _compute_robust_indirect(
     Y_R = Y @ reference_projection  # (n_excited_bins, n_experiments, ny, nu)
 
     # Project the per-experiment noise covariance onto the known reference
+    n_excited_bins = freq.excited_bins.size
     if cov_Z_noise is not None:
         n_channels = ny + nu
         I_channels = np.broadcast_to(
@@ -202,7 +207,7 @@ def _compute_robust_indirect(
     G_cov_total = None
     G_cov_noise = None
     if cov_Z_R_total is not None or cov_Z_R_noise is not None:
-        # Batched U^{-T}
+        # Batched U^(-T)
         U_R_inv_transpose = np.linalg.solve(U_R, np.eye(nu)).mT if nu > 1 else 1 / U_R
 
         # Batched V = [I_ny, -G]
@@ -238,29 +243,29 @@ if __name__ == "__main__":
     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
     r = data.r.mean(axis=-1)
     bla = closed_loop(r, data.u, data.y, data.fs, data.excited_bins)
-    G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
+    G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
     
     print(data.u.shape)
-    print(bla.G.std_total.shape)
+    print(bla.G.total.std.shape)
 
     # create 3x1 subplots
     plt.figure()
     plt.subplot(3, 1, 1)
     plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
     plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-    plt.plot(to_db(bla.G.std_nonlinear[:, 0]), label="std_nonlinear[0, 0]", linestyle="--")
+    plt.plot(to_db(bla.G.nonlinear.std[:, 0]), label="std_nonlinear[0, 0]", linestyle="--")
     plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
     plt.legend()
     plt.subplot(3, 1, 2)
     plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
     plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
-    plt.plot(to_db(bla.G.std_nonlinear[:, 1]), label="std_nonlinear[1, 0]", linestyle="--")
+    plt.plot(to_db(bla.G.nonlinear.std[:, 1]), label="std_nonlinear[1, 0]", linestyle="--")
     plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
     plt.legend()
     plt.subplot(3, 1, 3)
     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
     plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
-    plt.plot(to_db(bla.G.std_nonlinear[:, 2]), label="std_nonlinear[2, 0]", linestyle="--")
+    plt.plot(to_db(bla.G.nonlinear.std[:, 2]), label="std_nonlinear[2, 0]", linestyle="--")
     plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
     plt.legend()
     plt.show()
@@ -268,7 +273,7 @@ if __name__ == "__main__":
     data = load_f16()["F16Data_FullMSine_Level3.mat"]
     r = data.r.mean(axis=-1)
     bla = closed_loop(r, data.u, data.y, data.fs, data.excited_bins)
-    G, cov_total, cov_noise = bla.G.value, bla.G.cov_total, bla.G.cov_noise
+    G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
 
     # create 3x1 subplots
     plt.figure()
