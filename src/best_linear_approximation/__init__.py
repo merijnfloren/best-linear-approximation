@@ -1,21 +1,24 @@
 """Tools for best linear approximation."""
 
 from best_linear_approximation._bla import (
+    EstimationMethod,
+    ExperimentInfo,
+    FrequencyDomainUncertainty,
     FrequencyInfo,
     FrequencyResponse,
+    InputSpectrum,
     NonparametricBLA,
-    SpectralUncertainty,
+    OutputSpectrum,
+    Spectra,
 )
-from best_linear_approximation._signal_distortion import (
-    known_input_compute_output_nonlinear_covariance,
-    known_input_compute_output_nonlinear_pooled_variance,
-)
-
 __all__ = [
     "FrequencyInfo",
+    "FrequencyDomainUncertainty",
     "FrequencyResponse",
+    "EstimationMethod",
+    "ExperimentInfo",
+    "InputSpectrum",
     "NonparametricBLA",
-    "SpectralUncertainty",
-    "known_input_compute_output_nonlinear_covariance",
-    "known_input_compute_output_nonlinear_pooled_variance",
+    "OutputSpectrum",
+    "Spectra",
 ]

@@ -71,7 +71,7 @@ provides-extras = ["benchmarks"]
 [package.metadata.requires-dev]
 dev = [
     { name = "matplotlib", specifier = ">=3.11.1" },
-    { name = "multisine", specifier = ">=0.1.0" },
+    { name = "multisine", specifier = ">=0.1.1" },
     { name = "nonlinear-benchmarks", git = "https://github.com/MaartenSchoukens/nonlinear_benchmarks.git?rev=f9fb3883086870a27b31917ccde1f78c95d53cb2" },
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pyqt5", specifier = ">=5.15.11" },
@@ -741,14 +741,14 @@ wheels = [
 
 [[package]]
 name = "multisine"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/0f/4934a0162f523b1cca999c1f3a8425c746c543bbd2f673ce56fa98df7044/multisine-0.1.0.tar.gz", hash = "sha256:e3f50777bd5db54d988a751783c3ce9ac07d372bd0d9eae91559a7f007ef1817", size = 4737, upload-time = "2026-09-21T15:19:28.98Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/c9/b897d0f7916cb2a4f66878a3c24be158ca82193c3e26b416d21408673341/multisine-0.1.1.tar.gz", hash = "sha256:dea4e052a26f4ed81a8106b2e7b7bb85faa7677bd0ffa76cebd7d7dd1d0253c5", size = 4832, upload-time = "2026-09-24T09:11:59.186Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/93/7994d032fb6a5496a06039f2a15a184509cf8ea9402adb7ce81a00523174/multisine-0.1.0-py3-none-any.whl", hash = "sha256:17b38c795eae845db86669aaa981644d5bef0ba27676bf215e8dea80071dba95", size = 5547, upload-time = "2026-09-21T15:19:27.601Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/96/319a135298215959fe8cef4101baa37c9e227ef997ca1c3a93add41b8968/multisine-0.1.1-py3-none-any.whl", hash = "sha256:24489ad8c4959bf5995591d746dc15a81eb7f3f4fc7a0daa3e5088c6d3d7b36c", size = 5646, upload-time = "2026-09-24T09:12:00.405Z" },
 ]
 
 [[package]]

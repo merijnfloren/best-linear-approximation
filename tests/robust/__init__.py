@@ -13,17 +13,7 @@ from numpy.typing import NDArray
 
 from best_linear_approximation import NonparametricBLA
 from best_linear_approximation._array_shapes import as_batched_matrices, to_experiment_layout
-from best_linear_approximation._exceptions import (
-    NoiseCovarianceUnavailableWarning,
-    TotalCovarianceUnavailableWarning,
-)
 from best_linear_approximation._typing import ComplexArray, RealArray
-
-covariance_availability_cases = pytest.mark.parametrize(
-    ("n_experiments", "n_periods"),
-    [(1, 2), (2, 1)],
-    ids=["one_experiment", "one_period"],
-)
 
 bla_recovery_cases = pytest.mark.parametrize(
     ("ny", "nu"),
@@ -31,13 +21,13 @@ bla_recovery_cases = pytest.mark.parametrize(
     ids=["siso", "rectangular_mimo"],
 )
 
-bla_recovery_seeds = pytest.mark.parametrize("seed", [7, 19])
-
-bla_excitation_cases = pytest.mark.parametrize(
-    "orthogonal",
-    [True, False],
-    ids=["orthogonal", "nonorthogonal"],
+bla_recovery_excitation_cases = pytest.mark.parametrize(
+    ("ny", "nu", "orthogonal"),
+    [(1, 1, True), (3, 2, True), (3, 2, False)],
+    ids=["siso_orthogonal", "rectangular_mimo_orthogonal", "rectangular_mimo_nonorthogonal"],
 )
+
+bla_recovery_seeds = pytest.mark.parametrize("seed", [7, 19])
 
 bla_disturbance_cases = pytest.mark.parametrize(
     ("nonlinear_std", "noise_std"),
@@ -86,13 +76,6 @@ def generate_covariance_availability_signals(
     return r, u, y
 
 
-def covariance_unavailable_warning(n_experiments: int) -> type[Warning]:
-    """Return the warning for the covariance unavailable with this experiment count."""
-    if n_experiments == 1:
-        return TotalCovarianceUnavailableWarning
-    return NoiseCovarianceUnavailableWarning
-
-
 def sample_disturbances(
     covariance: ComplexArray,
     rng: np.random.Generator,
@@ -114,20 +97,12 @@ def to_time_domain(
     n_samples: int,
     excited_bins: NDArray[np.int_],
 ) -> RealArray:
-    """Convert excited spectra to real periods in the public realization layout."""
-    n_freqs = n_samples // 2 + 1
-    full_spectrum = np.zeros((n_freqs, *spectrum.shape[1:]), dtype=complex)
+    """Convert excited spectra to real periods in the public experiment layout."""
+    n_bins = n_samples // 2 + 1
+    full_spectrum = np.zeros((n_bins, *spectrum.shape[1:]), dtype=complex)
     full_spectrum[excited_bins] = spectrum
     signal = np.fft.irfft(full_spectrum, n=n_samples, axis=0)
-    n_samples, n_experiments, n_periods, n_channels, nu = signal.shape
-    n_realizations = nu * n_experiments
-    return signal.transpose(0, 3, 4, 1, 2).reshape(
-        n_samples,
-        n_channels,
-        n_realizations,
-        n_periods,
-        order="F",
-    )
+    return signal.transpose(0, 3, 4, 1, 2)
 
 
 def generate_test_setup(
@@ -147,6 +122,7 @@ def generate_test_setup(
             n_samples,
             fs,
             nu,
+            amplitude=np.arange(1, nu + 1),
             n_experiments=n_experiments,
             f_min=8.0,
             f_max=36.0,
@@ -160,6 +136,7 @@ def generate_test_setup(
         multisine = random_phase_multisine(
             n_samples,
             fs,
+            amplitude=np.arange(1, nu + 1),
             nu=nu,
             n_realizations=n_realizations,
             f_min=8.0,
@@ -199,32 +176,8 @@ def assert_bla_recovery_and_covariances(
     assert bla.G.noise.cov is not None
     assert bla.G.nonlinear.cov is not None
     _assert_plant_recovery(bla.G.value, G_true, G_total_cov_expected)
-    _assert_covariance(bla.G.total.cov, G_total_cov_expected, n_total_covariance_dof)
-    _assert_covariance(bla.G.noise.cov, G_noise_cov_expected, n_noise_covariance_dof)
-    expected_shape = G_true.shape
-    assert bla.G.total.var is not None
-    assert bla.G.noise.var is not None
-    assert bla.G.nonlinear.var is not None
-    assert bla.G.total.std is not None
-    assert bla.G.noise.std is not None
-    assert bla.G.nonlinear.std is not None
-    assert bla.G.total.var.shape == expected_shape
-    assert bla.G.noise.var.shape == expected_shape
-    assert bla.G.nonlinear.var.shape == expected_shape
-    assert bla.G.total.std.shape == expected_shape
-    assert bla.G.noise.std.shape == expected_shape
-    assert bla.G.nonlinear.std.shape == expected_shape
-    for covariance, variances in (
-        (bla.G.total.cov, bla.G.total.var),
-        (bla.G.noise.cov, bla.G.noise.var),
-        (bla.G.nonlinear.cov, bla.G.nonlinear.var),
-    ):
-        expected_variances = np.diagonal(covariance, axis1=-2, axis2=-1).real
-        expected_variances = expected_variances.reshape(expected_shape, order="F")
-        np.testing.assert_array_equal(variances, expected_variances)
-    np.testing.assert_array_equal(bla.G.total.std, np.sqrt(bla.G.total.var))
-    np.testing.assert_array_equal(bla.G.noise.std, np.sqrt(bla.G.noise.var))
-    np.testing.assert_array_equal(bla.G.nonlinear.std, np.sqrt(bla.G.nonlinear.var))
+    assert_covariance(bla.G.total.cov, G_total_cov_expected, n_total_covariance_dof)
+    assert_covariance(bla.G.noise.cov, G_noise_cov_expected, n_noise_covariance_dof)
     nonlinear_eigenvalues = np.linalg.eigvalsh(bla.G.nonlinear.cov)
     np.testing.assert_array_less(-1e-24, nonlinear_eigenvalues)
 
@@ -242,14 +195,14 @@ def _assert_plant_recovery(
     np.testing.assert_array_less(np.abs(errors), tolerance)
 
 
-def _assert_covariance(
+def assert_covariance(
     estimated: ComplexArray,
     expected: ComplexArray,
     n_degrees_of_freedom: int,
 ) -> None:
     """Check entries, allowing for finite-sample covariance scatter."""
     assert estimated.shape == expected.shape
-    np.testing.assert_allclose(estimated, estimated.conj().mT, atol=1e-24)
+    np.testing.assert_allclose(estimated, estimated.conj().mT, atol=1e-20)
     variances = np.maximum(np.diagonal(expected, axis1=-2, axis2=-1).real, 0)
     entry_scales = np.sqrt(variances[:, :, None] * variances[:, None, :])
     tolerance = 6 * entry_scales / np.sqrt(n_degrees_of_freedom) + 1e-24

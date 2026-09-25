@@ -11,6 +11,17 @@ RealArray = NDArray[np.floating[Any]]
 """An array with a real floating-point dtype."""
 
 
+FrequencyDomainSignal = NewType(
+    "FrequencyDomainSignal",
+    ComplexArray,
+)
+"""A validated frequency-domain signal in five-dimensional experiment layout.
+
+The shape is ``(n_bins, n_channels, nu, n_experiments, n_periods)``, and
+every axis has nonzero length. ``n_bins`` can either be all ``rfft`` bins, or
+a subset of bins.
+"""
+
 TimeDomainSignal = NewType(
     "TimeDomainSignal",
     RealArray,

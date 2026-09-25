@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from best_linear_approximation._covariance import propagate_covariance
 from best_linear_approximation._linear_algebra import kronecker_product
@@ -8,68 +7,65 @@ from best_linear_approximation.robust import known_input, noisy_input
 
 from . import (
     assert_bla_recovery_and_covariances,
+    assert_covariance,
     bla_disturbance_cases,
-    bla_excitation_cases,
-    bla_recovery_cases,
+    bla_recovery_excitation_cases,
     bla_recovery_seeds,
-    covariance_availability_cases,
-    covariance_unavailable_warning,
     generate_correlation_matrix,
-    generate_covariance_availability_signals,
     generate_test_setup,
     sample_disturbances,
     to_time_domain,
 )
 
 
-@covariance_availability_cases
-def test_known_input_covariances_require_repetitions(
-    n_experiments: int,
-    n_periods: int,
-) -> None:
-    """Verify known-input covariance availability and its warning."""
-    sampling_frequency = 8.0
-    expected_frequency = 1.0
-    r, _, y = generate_covariance_availability_signals(n_experiments, n_periods)
-    warning = covariance_unavailable_warning(n_experiments)
+def test_known_input_mimo_experiment_and_realization_layouts_are_equivalent() -> None:
+    """Verify known-input estimation gives the same result for both public layouts."""
+    ny = 2
+    nu = 2
+    n_periods = 2
+    setup = generate_test_setup(
+        ny,
+        nu,
+        seed=7,
+        orthogonal=True,
+        n_experiments=2,
+        n_periods=n_periods,
+    )
+    multisine = setup.multisine
+    n_experiments = setup.n_experiments
+    n_samples = setup.n_samples
+    n_excited_bins = multisine.freq.excited_bins.size
+    U = setup.U
+    Y = setup.G_true[:, None] @ U
+    Y = np.broadcast_to(Y[:, :, None], (n_excited_bins, n_experiments, n_periods, ny, nu))
 
-    with pytest.warns(warning):
-        bla = known_input(r, y, fs=sampling_frequency, excited_bins=np.array([1]))
+    u_experiment = to_time_domain(U[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
+    y_experiment = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
 
-    assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
-    assert bla.G.nonlinear.cov is None
-    assert bla.freq.fs == sampling_frequency
-    assert bla.freq.f_res == expected_frequency
-    assert bla.freq.f_min == expected_frequency
-    assert bla.freq.f_max == expected_frequency
-    expected_freqs = np.fft.rfftfreq(r.shape[0], d=1 / sampling_frequency)
-    np.testing.assert_array_equal(bla.freq.freqs, expected_freqs)
-    np.testing.assert_array_equal(bla.freq.excited_bins, np.array([1]))
-    np.testing.assert_array_equal(bla.freq.non_excited_bins, np.array([0, 2, 3, 4]))
+    n_realizations = nu * n_experiments
+    u_realization = u_experiment.reshape(n_samples, nu, n_realizations, order="F")
+    y_realization = y_experiment.reshape(n_samples, ny, n_realizations, n_periods, order="F")
 
+    bla_experiment = known_input(
+        u_experiment,
+        y_experiment,
+        multisine.freq.fs,
+        multisine.freq.excited_bins,
+    )
+    bla_realization = known_input(
+        u_realization,
+        y_realization,
+        multisine.freq.fs,
+        multisine.freq.excited_bins,
+    )
 
-@covariance_availability_cases
-def test_noisy_input_covariances_require_repetitions(
-    n_experiments: int,
-    n_periods: int,
-) -> None:
-    """Verify noisy-input covariance availability and its warning."""
-    _, u, y = generate_covariance_availability_signals(n_experiments, n_periods)
-    warning = covariance_unavailable_warning(n_experiments)
-
-    with pytest.warns(warning):
-        bla = noisy_input(u, y, fs=8.0, excited_bins=np.array([1]))
-
-    assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
-    assert bla.G.nonlinear.cov is None
+    np.testing.assert_array_equal(bla_experiment.G.value, bla_realization.G.value)
+    np.testing.assert_array_equal(bla_experiment.G.total.cov, bla_realization.G.total.cov)
 
 
-@bla_recovery_cases
+@bla_recovery_excitation_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
-@bla_excitation_cases
 def test_known_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,
@@ -102,12 +98,7 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     u = to_time_domain(U[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
     y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
 
-    bla = known_input(
-        u,
-        y,
-        multisine.freq.fs,
-        multisine.freq.excited_bins,
-    )
+    bla = known_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
 
     cov_G_total_expected, cov_G_noise_expected = _compute_oracle_covariances(
         U,
@@ -127,10 +118,145 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     )
 
 
-@bla_recovery_cases
+@bla_recovery_excitation_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
-@bla_excitation_cases
+def test_known_input_recovers_output_spectrum_uncertainties(
+    ny: int,
+    nu: int,
+    seed: int,
+    nonlinear_std: float,
+    noise_std: float,
+    orthogonal: bool,
+) -> None:
+    """Verify known-input estimation recovers output spectrum uncertainties."""
+    rng = np.random.default_rng(seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
+    multisine = setup.multisine
+    n_experiments = setup.n_experiments
+    n_periods = setup.n_periods
+    n_samples = setup.n_samples
+    n_excited_bins = multisine.freq.excited_bins.size
+
+    U = setup.U
+    Y_linear = setup.G_true[:, None] @ U
+    nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
+    cov_Y_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    cov_Y_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    Y_nonlinear = sample_disturbances(cov_Y_nonlinear, rng, n_experiments, 1, nu)
+    Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
+    Y = Y_linear[:, :, None] + Y_nonlinear + Y_noise
+
+    u = to_time_domain(U[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
+    y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
+    bla = known_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
+
+    assert bla.spectra.R is None
+    assert bla.spectra.U.total.cov is None
+    assert bla.spectra.U.nonlinear.cov is None
+    assert bla.spectra.U.noise.cov is None
+
+    Y_spectrum = bla.spectra.Y
+    assert Y_spectrum.total.cov is not None
+    assert Y_spectrum.nonlinear.cov is not None
+    assert Y_spectrum.noise.cov is not None
+
+    n_total_covariance_dof = n_experiments - 1
+    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
+    assert_covariance(
+        Y_spectrum.total.cov,
+        cov_Y_nonlinear + cov_Y_noise,
+        n_total_covariance_dof,
+    )
+    if nonlinear_std > 0:
+        assert_covariance(
+            Y_spectrum.nonlinear.cov,
+            cov_Y_nonlinear,
+            n_total_covariance_dof,
+        )
+    else:
+        nonlinear_eigenvalues = np.linalg.eigvalsh(Y_spectrum.nonlinear.cov)
+        np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
+    assert_covariance(
+        Y_spectrum.noise.cov[multisine.freq.excited_bins],
+        cov_Y_noise,
+        n_noise_covariance_dof,
+    )
+
+
+@bla_recovery_excitation_cases
+@bla_recovery_seeds
+@bla_disturbance_cases
+def test_noisy_input_recovers_output_spectrum_uncertainties(
+    ny: int,
+    nu: int,
+    seed: int,
+    nonlinear_std: float,
+    noise_std: float,
+    orthogonal: bool,
+) -> None:
+    """Verify noisy-input estimation recovers residual output spectrum uncertainties."""
+    rng = np.random.default_rng(seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
+    multisine = setup.multisine
+    n_experiments = setup.n_experiments
+    n_periods = setup.n_periods
+    n_samples = setup.n_samples
+    n_excited_bins = multisine.freq.excited_bins.size
+    n_channels = ny + nu
+
+    U = setup.U
+    G_true = setup.G_true
+    Y_linear = G_true[:, None] @ U
+    nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
+    cov_Z_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    cov_Z_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    Z_nonlinear = sample_disturbances(cov_Z_nonlinear, rng, n_experiments, 1, nu)
+    Z_noise = sample_disturbances(cov_Z_noise, rng, n_experiments, n_periods, nu)
+    Y_nonlinear, U_nonlinear = Z_nonlinear[..., :ny, :], Z_nonlinear[..., ny:, :]
+    Y_noise, U_noise = Z_noise[..., :ny, :], Z_noise[..., ny:, :]
+
+    U_measured = U[:, :, None] + U_nonlinear + U_noise
+    Y = Y_linear[:, :, None] + G_true[:, None, None] @ U_nonlinear
+    Y = Y + Y_nonlinear + Y_noise
+
+    u = to_time_domain(U_measured, n_samples, multisine.freq.excited_bins)
+    y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
+    bla = noisy_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
+
+    Y_spectrum = bla.spectra.Y
+    assert Y_spectrum.total.cov is not None
+    assert Y_spectrum.nonlinear.cov is not None
+    assert Y_spectrum.noise.cov is not None
+
+    cov_Y_nonlinear = cov_Z_nonlinear[:, :ny, :ny]
+    cov_Y_noise = cov_Z_noise[:, :ny, :ny]
+    n_total_covariance_dof = n_experiments - 1
+    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
+    assert_covariance(
+        Y_spectrum.total.cov,
+        cov_Y_nonlinear + cov_Y_noise,
+        n_total_covariance_dof,
+    )
+    if nonlinear_std > 0:
+        assert_covariance(
+            Y_spectrum.nonlinear.cov,
+            cov_Y_nonlinear,
+            n_total_covariance_dof,
+        )
+    else:
+        nonlinear_eigenvalues = np.linalg.eigvalsh(Y_spectrum.nonlinear.cov)
+        np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
+    assert_covariance(
+        Y_spectrum.noise.cov[multisine.freq.excited_bins],
+        cov_Y_noise,
+        n_noise_covariance_dof,
+    )
+
+
+@bla_recovery_excitation_cases
+@bla_recovery_seeds
+@bla_disturbance_cases
 def test_noisy_input_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,

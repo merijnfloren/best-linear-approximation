@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from best_linear_approximation._array_shapes import to_experiment_layout
+from best_linear_approximation._array_shapes import add_period_axis, to_experiment_layout
 from best_linear_approximation._exceptions import (
     InsufficientExperimentsError,
     RealizationsTruncatedWarning,
@@ -37,3 +37,14 @@ def test_to_experiment_layout_raises_if_nu_is_larger_than_n_realizations() -> No
 
     with pytest.raises(InsufficientExperimentsError):
         to_experiment_layout(realization_layout, nu=3)
+
+
+def test_add_period_axis_adds_singleton_axis_only_when_needed() -> None:
+    experiment_layout_without_periods = np.empty((1, 2, 3, 4))
+    experiment_layout_with_periods = np.empty((1, 2, 3, 4, 5))
+
+    result_without_periods = add_period_axis(experiment_layout_without_periods)
+    result_with_periods = add_period_axis(experiment_layout_with_periods)
+
+    assert result_without_periods.shape == (1, 2, 3, 4, 1)
+    assert result_with_periods is experiment_layout_with_periods

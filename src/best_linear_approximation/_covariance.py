@@ -3,8 +3,10 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from best_linear_approximation._typing import ComplexArray
 
-def compute_sample_covariance(array: NDArray[Any]) -> NDArray[Any]:
+
+def compute_sample_covariance(array: ComplexArray) -> ComplexArray:
     """Compute sample covariance matrices.
 
     ``array`` has shape ``(..., n_samples, n_channels)``. Leading axes are treated
@@ -15,7 +17,7 @@ def compute_sample_covariance(array: NDArray[Any]) -> NDArray[Any]:
     return (centered @ centered.conj().mT) / (centered.shape[-1] - 1)
 
 
-def propagate_covariance(covariance: NDArray[Any], jacobian: NDArray[Any]) -> NDArray[Any]:
+def propagate_covariance(covariance: ComplexArray, jacobian: ComplexArray) -> ComplexArray:
     """Propagate covariance through a linear transformation.
 
     ``covariance`` has shape ``(..., n_channels, n_channels)`` and ``jacobian`` has shape
@@ -27,7 +29,7 @@ def propagate_covariance(covariance: NDArray[Any], jacobian: NDArray[Any]) -> ND
     return jacobian @ covariance @ jacobian.conj().mT
 
 
-def project_onto_positive_semidefinite(covariance: NDArray[Any]) -> NDArray[Any]:
+def project_onto_positive_semidefinite(covariance: ComplexArray) -> ComplexArray:
     """Project covariance matrices onto the positive-semidefinite cone.
 
     The final two axes of ``covariance`` are treated as square matrix axes; leading
@@ -38,4 +40,3 @@ def project_onto_positive_semidefinite(covariance: NDArray[Any]) -> NDArray[Any]
     eigenvalues, eigenvectors = np.linalg.eigh(hermitian_covariance)
     nonnegative_eigenvalues = np.maximum(eigenvalues, 0)
     return (eigenvectors * nonnegative_eigenvalues[..., None, :]) @ eigenvectors.conj().mT
-

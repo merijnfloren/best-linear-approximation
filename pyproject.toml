@@ -5,14 +5,14 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
   "matplotlib>=3.11.1",
-  "multisine>=0.1.0",
+  "multisine>=0.1.1",
   "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
   "pandas>=3.0.5",
   "pyqt5>=5.15.11",
   "pytest>=9.1.1",
   "ruff>=0.16.3",
   "scipy>=1.17.0",
-  "toml-sort>=0.25.0"
+  "toml-sort>=0.25.0",
 ]
 
 [project]

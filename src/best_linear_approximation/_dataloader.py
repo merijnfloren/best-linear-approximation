@@ -283,7 +283,7 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
 
     """
     nlb = _load_benchmark_module()
-    nlb_data = cast(Any, nlb.Silverbox()[0])
+    nlb_data = cast("Any", nlb.Silverbox()[0])
     u, y = nlb_data.u, nlb_data.y
 
     nu, ny = 1, 1

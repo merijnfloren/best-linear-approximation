@@ -7,9 +7,8 @@ from numpy.typing import NDArray
 from best_linear_approximation._argument_preparation import prepare_arguments
 from best_linear_approximation._array_shapes import as_batched_matrices
 from best_linear_approximation._bla import (
-    FrequencyInfo,
     NonparametricBLA,
-    create_bla,
+    create_bla_frequency_response,
     create_frequency_info,
 )
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
@@ -28,7 +27,7 @@ from best_linear_approximation._signal_validation import (
     SignalContract,
     SignalRanks,
 )
-from best_linear_approximation._typing import RealArray, TimeDomainSignal
+from best_linear_approximation._typing import ComplexArray, ExcitedBins, RealArray, TimeDomainSignal
 
 INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
@@ -86,8 +85,10 @@ def known_reference(
 
     """
     r, u, y, fs, excited_bins = prepare_arguments(r, u, y, fs, excited_bins, INDIRECT_CONTRACTS)
+    G, G_cov_total, G_cov_noise = _compute_robust_indirect(r, u, y, excited_bins)
+
     freq = create_frequency_info(u.shape[0], fs, excited_bins)
-    return _compute_robust_indirect(r, u, y, freq)
+    return create_bla_frequency_response(G, G_cov_total, G_cov_noise)
 
 
 def closed_loop(
@@ -134,20 +135,24 @@ def _compute_robust_indirect(
     r: TimeDomainSignal,
     u: TimeDomainSignal,
     y: TimeDomainSignal,
-    freq: FrequencyInfo,
-) -> NonparametricBLA:
+    excited_bins: ExcitedBins,
+) -> tuple[ComplexArray, ComplexArray | None, ComplexArray | None]:
     """Compute the best linear approximation and its covariances from noisy input data."""
     ny, nu, n_experiments, n_periods = y.shape[-4:]
 
-    # Arrange the arrays for NumPy's batched linear algebra broadcasting
-    r_batched_matrices = as_batched_matrices(r)  # (n_samples, n_experiments, 1, nu, nu)
-    u_batched_matrices = as_batched_matrices(u)  # (n_samples, n_experiments, n_periods, nu, nu)
-    y_batched_matrices = as_batched_matrices(y)  # (n_samples, n_experiments, n_periods, ny, nu)
-
     # To excited frequencies
-    R = np.fft.rfft(r_batched_matrices, axis=0)[freq.excited_bins]
-    U = np.fft.rfft(u_batched_matrices, axis=0)[freq.excited_bins]
-    Y = np.fft.rfft(y_batched_matrices, axis=0)[freq.excited_bins]
+    R = np.fft.rfft(  # (n_excited_bins, n_experiments, 1, nu, nu)
+        as_batched_matrices(r),
+        axis=0,
+    )[excited_bins]
+    U = np.fft.rfft(  # (n_excited_bins, n_experiments, n_periods, nu, nu)
+        as_batched_matrices(u),
+        axis=0,
+    )[excited_bins]
+    Y = np.fft.rfft(  # (n_excited_bins, n_experiments, n_periods, ny, nu)
+        as_batched_matrices(y),
+        axis=0,
+    )[excited_bins]
 
     # Data noise covariance: (n_excited_bins, n_experiments, (ny + nu) * nu, (ny + nu) * nu)
     if n_periods > 1:
@@ -172,7 +177,7 @@ def _compute_robust_indirect(
     Y_R = Y @ reference_projection  # (n_excited_bins, n_experiments, ny, nu)
 
     # Project the per-experiment noise covariance onto the known reference
-    n_excited_bins = freq.excited_bins.size
+    n_excited_bins = excited_bins.size
     if cov_Z_noise is not None:
         n_channels = ny + nu
         I_channels = np.broadcast_to(
@@ -225,7 +230,7 @@ def _compute_robust_indirect(
         if cov_Z_R_noise is not None:
             G_cov_noise = propagate_covariance(cov_Z_R_noise, jacobian)
 
-    return create_bla(freq, G, G_cov_total, G_cov_noise)
+    return G, G_cov_total, G_cov_noise
 
 
 
@@ -244,7 +249,7 @@ if __name__ == "__main__":
     r = data.r.mean(axis=-1)
     bla = closed_loop(r, data.u, data.y, data.fs, data.excited_bins)
     G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
-    
+
     print(data.u.shape)
     print(bla.G.total.std.shape)
 
@@ -291,7 +296,7 @@ if __name__ == "__main__":
     plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
     plt.legend()
     plt.show()
-    
+
         # create 3x1 subplots
     print(data.y.shape)
     plt.figure()

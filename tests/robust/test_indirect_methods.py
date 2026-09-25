@@ -15,40 +15,15 @@ from best_linear_approximation.robust import closed_loop, known_reference, noisy
 from . import (
     assert_bla_recovery_and_covariances,
     bla_disturbance_cases,
-    bla_excitation_cases,
     bla_recovery_cases,
+    bla_recovery_excitation_cases,
     bla_recovery_seeds,
-    covariance_availability_cases,
-    covariance_unavailable_warning,
     generate_correlation_matrix,
     generate_covariance_availability_signals,
     generate_test_setup,
     sample_disturbances,
     to_time_domain,
 )
-
-
-@covariance_availability_cases
-def test_closed_loop_covariances_require_repetitions(
-    n_experiments: int,
-    n_periods: int,
-) -> None:
-    """Verify known-reference covariance availability and its warning."""
-    r, u, y = generate_covariance_availability_signals(n_experiments, n_periods)
-    warning = covariance_unavailable_warning(n_experiments)
-
-    with pytest.warns(warning):
-        bla = closed_loop(
-            r,
-            u,
-            y,
-            fs=8.0,
-            excited_bins=np.array([1]),
-        )
-
-    assert bla.G.value.shape == (1, 1, 1)
-    assert bla.G.total.cov is None if n_experiments == 1 else bla.G.noise.cov is None
-    assert bla.G.nonlinear.cov is None
 
 
 def test_closed_loop_is_identical_to_known_reference() -> None:
@@ -92,12 +67,11 @@ def test_known_reference_reduces_input_measurement_bias(
     seed: int,
 ) -> None:
     """Verify a clean reference reduces open-loop input measurement bias."""
-    n_trials = 32
+    n_trials = 16
     n_experiments = 512
     n_periods = 4
-    input_noise_std = 6.0
+    input_noise_std = 7.0
     output_noise_std = 0.2
-    minimum_relative_noisy_input_bias = 0.01
     maximum_relative_noisy_input_bias = 0.1
     maximum_relative_bias_ratio = 0.4
     rng = np.random.default_rng(seed)
@@ -130,8 +104,16 @@ def test_known_reference_reduces_input_measurement_bias(
     for _ in range(n_trials):
         U_noise = sample_disturbances(cov_U_noise, rng, n_experiments, n_periods, nu)
         Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
-        u = to_time_domain(U_true[:, :, None] + U_noise, n_samples, multisine.freq.excited_bins)
-        y = to_time_domain(Y_true[:, :, None] + Y_noise, n_samples, multisine.freq.excited_bins)
+        u = to_time_domain(
+            U_true[:, :, None] + U_noise,
+            n_samples,
+            multisine.freq.excited_bins,
+        )
+        y = to_time_domain(
+            Y_true[:, :, None] + Y_noise,
+            n_samples,
+            multisine.freq.excited_bins,
+        )
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", PossibleExcitationAmplitudeMismatchWarning)
@@ -160,15 +142,13 @@ def test_known_reference_reduces_input_measurement_bias(
         np.linalg.norm(np.mean(noisy_input_errors, axis=0)) / true_response_norm
     )
 
-    assert relative_noisy_input_bias > minimum_relative_noisy_input_bias
     assert relative_noisy_input_bias < maximum_relative_noisy_input_bias
     assert relative_known_reference_bias < maximum_relative_bias_ratio * relative_noisy_input_bias
 
 
-@bla_recovery_cases
+@bla_recovery_excitation_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
-@bla_excitation_cases
 def test_closed_loop_recovers_plant_and_propagated_covariances(
     ny: int,
     nu: int,

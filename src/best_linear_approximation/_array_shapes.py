@@ -1,23 +1,27 @@
 import warnings
-from typing import Any
+from typing import overload
 
 import numpy as np
-from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import (
     InsufficientExperimentsError,
     RealizationsTruncatedWarning,
 )
-from best_linear_approximation._typing import RealArray
+from best_linear_approximation._typing import (
+    FrequencyDomainSignal,
+    RealArray,
+    TimeDomainSignal,
+)
 
 CANONICAL_SIGNAL_NDIM = 5
 MINIMUM_SIGNAL_NDIM = 3
+EXPERIMENT_LAYOUT_WITHOUT_PERIOD_NDIM = 4
 
 
 def to_experiment_layout(
     signal: RealArray,
     nu: int,
-) -> RealArray:
+) -> TimeDomainSignal:
     """Convert a signal from realization layout to five-dimensional experiment layout.
 
     Splits the realization axis of a signal with shape
@@ -49,10 +53,32 @@ def to_experiment_layout(
     signal = signal[:, :, :n_effective_realizations, ...]
     signal = signal.reshape(*signal.shape[:2], nu, n_experiments, *signal.shape[3:], order="F")
 
-    return signal if signal.ndim == CANONICAL_SIGNAL_NDIM else signal[..., None]
+    return TimeDomainSignal(
+        signal
+        if signal.ndim == CANONICAL_SIGNAL_NDIM
+        else add_period_axis(signal),
+    )
 
 
-def as_batched_matrices(signal: NDArray[Any]) -> NDArray[Any]:
+def add_period_axis(signal: RealArray) -> RealArray:
+    """Add a singleton period axis to a four-dimensional experiment signal.
+
+    Five-dimensional signals are returned unchanged.
+    """
+    return signal[..., None] if signal.ndim == EXPERIMENT_LAYOUT_WITHOUT_PERIOD_NDIM else signal
+
+
+@overload
+def as_batched_matrices(signal: TimeDomainSignal) -> TimeDomainSignal: ...
+
+
+@overload
+def as_batched_matrices(signal: FrequencyDomainSignal) -> FrequencyDomainSignal: ...
+
+
+def as_batched_matrices(
+    signal: TimeDomainSignal | FrequencyDomainSignal
+) -> TimeDomainSignal | FrequencyDomainSignal:
     """Arrange a signal as matrices for batched linear algebra.
 
     Transforms an array with shape ``(n_leading, n_rows, n_cols, ...)`` into

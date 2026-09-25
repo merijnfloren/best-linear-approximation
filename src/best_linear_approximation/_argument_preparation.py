@@ -5,7 +5,7 @@ from typing import overload
 import numpy as np
 from numpy.typing import NDArray
 
-from best_linear_approximation._array_shapes import to_experiment_layout
+from best_linear_approximation._array_shapes import add_period_axis, to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
     PossibleExcitationAmplitudeMismatchWarning,
@@ -101,6 +101,9 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
         r = to_experiment_layout(r, nu) if r is not None else None
         u = to_experiment_layout(u, nu)
         y = to_experiment_layout(y, nu)
+    else:
+        r = add_period_axis(r) if r is not None else None
+        u = add_period_axis(u)
 
     r = TimeDomainSignal(r) if r is not None else None
     u = TimeDomainSignal(u)
