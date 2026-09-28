@@ -1,7 +1,5 @@
-from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from best_linear_approximation._typing import ComplexArray
 

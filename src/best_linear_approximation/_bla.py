@@ -71,9 +71,9 @@ class FrequencyDomainUncertainty:
 @dataclass(frozen=True)
 class _FrequencyDomainEstimate:
     value: ComplexArray
-    total: FrequencyDomainUncertainty
-    nonlinear: FrequencyDomainUncertainty
     noise: FrequencyDomainUncertainty
+    nonlinear: FrequencyDomainUncertainty
+    total: FrequencyDomainUncertainty
 
 
 @dataclass(frozen=True)
@@ -83,12 +83,43 @@ class FrequencyResponse(_FrequencyDomainEstimate):
 
 @dataclass(frozen=True)
 class InputSpectrum(_FrequencyDomainEstimate):
-    """Spectrum estimate and its uncertainty estimates."""
+    """Input or reference spectrum and its uncertainty estimates."""
 
 
 @dataclass(frozen=True)
 class OutputSpectrum(_FrequencyDomainEstimate):
-    """Spectrum estimate and its uncertainty estimates."""
+    """Output spectrum and its uncertainty estimates.
+
+    Attributes
+    ----------
+    value : ComplexArray
+        Output spectrum at the ``rfft`` bins.
+    noise : FrequencyDomainUncertainty
+        Measurement-noise uncertainty, with covariance ``Cov(Y_noise)``.
+        Requires ``n_periods > 1``.
+    nonlinear : FrequencyDomainUncertainty
+        Nonlinear-distortion uncertainty, with covariance ``Cov(Y_nonlinear)``.
+        Requires ``n_periods > 1`` and an estimable ``total`` uncertainty. The
+        latter requires more than one independent realization:
+        ``n_experiments > 1``, or ``n_experiments * nu > 1`` when the
+        excitation design makes subexperiments independent.
+    total : FrequencyDomainUncertainty
+        Total uncertainty. When ``nonlinear`` and ``noise`` are available, its
+        covariance is simply their sum, ``Cov(Y_nonlinear) + Cov(Y_noise)``;
+        otherwise, it is estimated directly without resolving its components.
+        It requires more than one independent realization: ``n_experiments > 1``,
+        or ``n_experiments * nu > 1`` when the excitation design makes
+        subexperiments independent. With noiseless input, it can generally be
+        estimated when ``n_periods == 1``. For noisy input, ``n_periods > 1``
+        is also required.
+    total_equation_error : FrequencyDomainUncertainty
+        Total equation-error uncertainty, with covariance
+        ``Cov(Y_nonlinear) + Cov(Y_noise - G_bla @ U_noise)``. Like ``total``,
+        it requires more than one independent realization. Unlike ``total``,
+        it may be estimable from noisy-input data when ``n_periods == 1``.
+        Reduces to ``total`` when the input is noiseless.
+
+    """
 
     total_equation_error: FrequencyDomainUncertainty
 
@@ -224,6 +255,7 @@ class NonparametricBLA:
         Recording metadata and estimation method.
 
     """
+
     G: FrequencyResponse
     spectra: Spectra
     freq: FrequencyInfo
@@ -254,27 +286,26 @@ def create_frequency_info(
 
 
 def create_bla_frequency_response(
-    frequency_response: ComplexArray,
-    cov_total: ComplexArray | None,
-    cov_noise: ComplexArray | None,
+    G_bla: ComplexArray,
+    G_total_cov: ComplexArray | None,
+    G_noise_cov: ComplexArray | None,
 ) -> FrequencyResponse:
     """Create a frequency response estimate from its value and covariances."""
-    cov_nonlinear = None
-    if cov_total is not None and cov_noise is not None:
-        cov_nonlinear = project_onto_positive_semidefinite(cov_total - cov_noise)
+    nonlinear_cov = None
+    if G_total_cov is not None and G_noise_cov is not None:
+        nonlinear_cov = project_onto_positive_semidefinite(G_total_cov - G_noise_cov)
 
-    marginal_var_shape = frequency_response.shape[1:]
-    total = _create_frequency_domain_uncertainty(cov_total, marginal_var_shape)
-    nonlinear = _create_frequency_domain_uncertainty(cov_nonlinear, marginal_var_shape)
-    noise = _create_frequency_domain_uncertainty(cov_noise, marginal_var_shape)
-    return FrequencyResponse(frequency_response, total, nonlinear, noise)
+    marginal_var_shape = G_bla.shape[1:]
+    noise = _create_frequency_domain_uncertainty(G_noise_cov, marginal_var_shape)
+    nonlinear = _create_frequency_domain_uncertainty(nonlinear_cov, marginal_var_shape)
+    total = _create_frequency_domain_uncertainty(G_total_cov, marginal_var_shape)
+    return FrequencyResponse(G_bla, noise, nonlinear, total)
 
 
 def _create_frequency_domain_uncertainty(
     covariance: ComplexArray | None,
     marginal_var_shape: tuple[int, ...],
 ) -> FrequencyDomainUncertainty:
-    """Create available or unavailable frequency-domain uncertainty."""
     if covariance is None:
         return FrequencyDomainUncertainty.unavailable()
 

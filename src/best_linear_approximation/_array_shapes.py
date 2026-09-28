@@ -77,7 +77,7 @@ def as_batched_matrices(signal: FrequencyDomainSignal) -> FrequencyDomainSignal:
 
 
 def as_batched_matrices(
-    signal: TimeDomainSignal | FrequencyDomainSignal
+    signal: TimeDomainSignal | FrequencyDomainSignal,
 ) -> TimeDomainSignal | FrequencyDomainSignal:
     """Arrange a signal as matrices for batched linear algebra.
 

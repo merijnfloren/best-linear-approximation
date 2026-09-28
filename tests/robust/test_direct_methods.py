@@ -88,10 +88,10 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     Y_linear = setup.G_true[:, None] @ U
 
     nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
-    cov_Y_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, ny)
-    cov_Y_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, ny)
-    Y_nonlinear = sample_disturbances(cov_Y_nonlinear, rng, n_experiments, 1, nu)
-    Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
+    Y_nonlinear_cov = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    Y_noise_cov = noise_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    Y_nonlinear = sample_disturbances(Y_nonlinear_cov, rng, n_experiments, 1, nu)
+    Y_noise = sample_disturbances(Y_noise_cov, rng, n_experiments, n_periods, nu)
 
     Y = Y_linear[:, :, None] + Y_nonlinear + Y_noise
 
@@ -100,10 +100,10 @@ def test_known_input_recovers_plant_and_propagated_covariances(
 
     bla = known_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
 
-    cov_G_total_expected, cov_G_noise_expected = _compute_oracle_covariances(
+    G_total_cov_expected, G_noise_cov_expected = _compute_oracle_covariances(
         U,
-        cov_Y_noise,
-        cov_Y_nonlinear,
+        Y_noise_cov,
+        Y_nonlinear_cov,
         n_periods,
         known_input=True,
     )
@@ -111,8 +111,8 @@ def test_known_input_recovers_plant_and_propagated_covariances(
     assert_bla_recovery_and_covariances(
         bla,
         G_true,
-        cov_G_total_expected,
-        cov_G_noise_expected,
+        G_total_cov_expected,
+        G_noise_cov_expected,
         n_experiments,
         n_periods,
     )
@@ -141,10 +141,10 @@ def test_known_input_recovers_output_spectrum_uncertainties(
     U = setup.U
     Y_linear = setup.G_true[:, None] @ U
     nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
-    cov_Y_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, ny)
-    cov_Y_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, ny)
-    Y_nonlinear = sample_disturbances(cov_Y_nonlinear, rng, n_experiments, 1, nu)
-    Y_noise = sample_disturbances(cov_Y_noise, rng, n_experiments, n_periods, nu)
+    Y_nonlinear_cov = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    Y_noise_cov = noise_var * generate_correlation_matrix(rng, n_excited_bins, ny)
+    Y_nonlinear = sample_disturbances(Y_nonlinear_cov, rng, n_experiments, 1, nu)
+    Y_noise = sample_disturbances(Y_noise_cov, rng, n_experiments, n_periods, nu)
     Y = Y_linear[:, :, None] + Y_nonlinear + Y_noise
 
     u = to_time_domain(U[:, :, None], n_samples, multisine.freq.excited_bins)[..., 0]
@@ -165,13 +165,13 @@ def test_known_input_recovers_output_spectrum_uncertainties(
     n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
     assert_covariance(
         Y_spectrum.total.cov,
-        cov_Y_nonlinear + cov_Y_noise,
+        Y_nonlinear_cov + Y_noise_cov,
         n_total_covariance_dof,
     )
     if nonlinear_std > 0:
         assert_covariance(
             Y_spectrum.nonlinear.cov,
-            cov_Y_nonlinear,
+            Y_nonlinear_cov,
             n_total_covariance_dof,
         )
     else:
@@ -179,77 +179,7 @@ def test_known_input_recovers_output_spectrum_uncertainties(
         np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
     assert_covariance(
         Y_spectrum.noise.cov[multisine.freq.excited_bins],
-        cov_Y_noise,
-        n_noise_covariance_dof,
-    )
-
-
-@bla_recovery_excitation_cases
-@bla_recovery_seeds
-@bla_disturbance_cases
-def test_noisy_input_recovers_output_spectrum_uncertainties(
-    ny: int,
-    nu: int,
-    seed: int,
-    nonlinear_std: float,
-    noise_std: float,
-    orthogonal: bool,
-) -> None:
-    """Verify noisy-input estimation recovers residual output spectrum uncertainties."""
-    rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed, orthogonal)
-    multisine = setup.multisine
-    n_experiments = setup.n_experiments
-    n_periods = setup.n_periods
-    n_samples = setup.n_samples
-    n_excited_bins = multisine.freq.excited_bins.size
-    n_channels = ny + nu
-
-    U = setup.U
-    G_true = setup.G_true
-    Y_linear = G_true[:, None] @ U
-    nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
-    cov_Z_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
-    cov_Z_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
-    Z_nonlinear = sample_disturbances(cov_Z_nonlinear, rng, n_experiments, 1, nu)
-    Z_noise = sample_disturbances(cov_Z_noise, rng, n_experiments, n_periods, nu)
-    Y_nonlinear, U_nonlinear = Z_nonlinear[..., :ny, :], Z_nonlinear[..., ny:, :]
-    Y_noise, U_noise = Z_noise[..., :ny, :], Z_noise[..., ny:, :]
-
-    U_measured = U[:, :, None] + U_nonlinear + U_noise
-    Y = Y_linear[:, :, None] + G_true[:, None, None] @ U_nonlinear
-    Y = Y + Y_nonlinear + Y_noise
-
-    u = to_time_domain(U_measured, n_samples, multisine.freq.excited_bins)
-    y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
-    bla = noisy_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
-
-    Y_spectrum = bla.spectra.Y
-    assert Y_spectrum.total.cov is not None
-    assert Y_spectrum.nonlinear.cov is not None
-    assert Y_spectrum.noise.cov is not None
-
-    cov_Y_nonlinear = cov_Z_nonlinear[:, :ny, :ny]
-    cov_Y_noise = cov_Z_noise[:, :ny, :ny]
-    n_total_covariance_dof = n_experiments - 1
-    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
-    assert_covariance(
-        Y_spectrum.total.cov,
-        cov_Y_nonlinear + cov_Y_noise,
-        n_total_covariance_dof,
-    )
-    if nonlinear_std > 0:
-        assert_covariance(
-            Y_spectrum.nonlinear.cov,
-            cov_Y_nonlinear,
-            n_total_covariance_dof,
-        )
-    else:
-        nonlinear_eigenvalues = np.linalg.eigvalsh(Y_spectrum.nonlinear.cov)
-        np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
-    assert_covariance(
-        Y_spectrum.noise.cov[multisine.freq.excited_bins],
-        cov_Y_noise,
+        Y_noise_cov,
         n_noise_covariance_dof,
     )
 
@@ -280,10 +210,10 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
     Y_linear = G_true[:, None] @ U
 
     nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
-    cov_Z_nonlinear = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
-    cov_Z_noise = noise_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
-    Z_nonlinear = sample_disturbances(cov_Z_nonlinear, rng, n_experiments, 1, nu)
-    Z_noise = sample_disturbances(cov_Z_noise, rng, n_experiments, n_periods, nu)
+    Z_nonlinear_cov = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    Z_noise_cov = noise_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    Z_nonlinear = sample_disturbances(Z_nonlinear_cov, rng, n_experiments, 1, nu)
+    Z_noise = sample_disturbances(Z_noise_cov, rng, n_experiments, n_periods, nu)
     Y_nonlinear, U_nonlinear = Z_nonlinear[..., :ny, :], Z_nonlinear[..., ny:, :]
     Y_noise, U_noise = Z_noise[..., :ny, :], Z_noise[..., ny:, :]
 
@@ -300,10 +230,10 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
         multisine.freq.excited_bins,
     )
 
-    cov_G_total_expected, cov_G_noise_expected = _compute_oracle_covariances(
+    G_total_cov_expected, G_noise_cov_expected = _compute_oracle_covariances(
         U,
-        cov_Z_noise,
-        cov_Z_nonlinear,
+        Z_noise_cov,
+        Z_nonlinear_cov,
         n_periods,
         G_true=G_true,
     )
@@ -311,17 +241,99 @@ def test_noisy_input_recovers_plant_and_propagated_covariances(
     assert_bla_recovery_and_covariances(
         bla,
         G_true,
-        cov_G_total_expected,
-        cov_G_noise_expected,
+        G_total_cov_expected,
+        G_noise_cov_expected,
         n_experiments,
         n_periods,
     )
 
 
+@bla_recovery_excitation_cases
+@bla_recovery_seeds
+@bla_disturbance_cases
+def test_noisy_input_recovers_spectrum_uncertainties(
+    ny: int,
+    nu: int,
+    seed: int,
+    nonlinear_std: float,
+    noise_std: float,
+    orthogonal: bool,
+) -> None:
+    """Verify noisy-input estimation recovers residual output spectrum uncertainties."""
+    rng = np.random.default_rng(seed)
+    setup = generate_test_setup(ny, nu, seed, orthogonal)
+    multisine = setup.multisine
+    n_experiments = setup.n_experiments
+    n_periods = setup.n_periods
+    n_samples = setup.n_samples
+    n_excited_bins = multisine.freq.excited_bins.size
+    n_channels = ny + nu
+
+    U = setup.U
+    G_true = setup.G_true
+    Y_linear = G_true[:, None] @ U
+    nonlinear_var, noise_var = nonlinear_std**2, noise_std**2
+    Z_nonlinear_cov = nonlinear_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    Z_noise_cov = noise_var * generate_correlation_matrix(rng, n_excited_bins, n_channels)
+    Z_nonlinear = sample_disturbances(Z_nonlinear_cov, rng, n_experiments, 1, nu)
+    Z_noise = sample_disturbances(Z_noise_cov, rng, n_experiments, n_periods, nu)
+    Y_nonlinear, U_nonlinear = Z_nonlinear[..., :ny, :], Z_nonlinear[..., ny:, :]
+    Y_noise, U_noise = Z_noise[..., :ny, :], Z_noise[..., ny:, :]
+
+    U_measured = U[:, :, None] + U_nonlinear + U_noise
+    Y = Y_linear[:, :, None] + G_true[:, None, None] @ U_nonlinear
+    Y = Y + Y_nonlinear + Y_noise
+
+    u = to_time_domain(U_measured, n_samples, multisine.freq.excited_bins)
+    y = to_time_domain(Y, n_samples, multisine.freq.excited_bins)
+    bla = noisy_input(u, y, multisine.freq.fs, multisine.freq.excited_bins)
+
+    U_spectrum = bla.spectra.U
+    assert U_spectrum.total.cov is None
+    assert U_spectrum.nonlinear.cov is None
+    assert U_spectrum.noise.cov is not None
+
+    Y_spectrum = bla.spectra.Y
+    assert Y_spectrum.total.cov is not None
+    assert Y_spectrum.nonlinear.cov is not None
+    assert Y_spectrum.noise.cov is not None
+
+    Y_nonlinear_cov = Z_nonlinear_cov[:, :ny, :ny]
+    Y_noise_cov = Z_noise_cov[:, :ny, :ny]
+    U_noise_cov = Z_noise_cov[:, ny:, ny:]
+    n_total_covariance_dof = n_experiments - 1
+    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
+    assert_covariance(
+        Y_spectrum.total.cov,
+        Y_nonlinear_cov + Y_noise_cov,
+        n_total_covariance_dof,
+    )
+    if nonlinear_std > 0:
+        assert_covariance(
+            Y_spectrum.nonlinear.cov,
+            Y_nonlinear_cov,
+            n_total_covariance_dof,
+        )
+    else:
+        nonlinear_eigenvalues = np.linalg.eigvalsh(Y_spectrum.nonlinear.cov)
+        np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
+
+    assert_covariance(
+        Y_spectrum.noise.cov[multisine.freq.excited_bins],
+        Y_noise_cov,
+        n_noise_covariance_dof,
+    )
+    assert_covariance(
+        U_spectrum.noise.cov[multisine.freq.excited_bins],
+        U_noise_cov,
+        n_noise_covariance_dof,
+    )
+
+
 def _compute_oracle_covariances(
     U: ComplexArray,
-    cov_noise: ComplexArray,
-    cov_nonlinear: ComplexArray,
+    noise_cov: ComplexArray,
+    nonlinear_cov: ComplexArray,
     n_periods: int,
     G_true: ComplexArray | None = None,
     *,
@@ -339,9 +351,9 @@ def _compute_oracle_covariances(
     n_excited_bins, n_experiments, nu, _ = U.shape
     U_inv_transpose = np.linalg.solve(U, np.eye(nu)).mT
     if known_input:
-        ny = cov_noise.shape[-1]
+        ny = noise_cov.shape[-1]
         I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, n_experiments, ny, ny))
-        V = I_ny
+        residual_transform = I_ny
     else:
         assert G_true is not None
         ny = G_true.shape[1]
@@ -353,34 +365,34 @@ def _compute_oracle_covariances(
             (n_excited_bins, n_channels, n_channels),
         ).copy()
         nonlinear_transform[:, :ny, ny:] = G_true
-        cov_nonlinear = nonlinear_transform @ cov_nonlinear @ nonlinear_transform.conj().mT
+        nonlinear_cov = nonlinear_transform @ nonlinear_cov @ nonlinear_transform.conj().mT
 
         G_true_per_experiment = np.broadcast_to(
             G_true[:, None],
             (n_excited_bins, n_experiments, ny, nu),
         )
         I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, n_experiments, ny, ny))
-        V = np.concatenate((I_ny, -G_true_per_experiment), axis=-1)
+        residual_transform = np.concatenate((I_ny, -G_true_per_experiment), axis=-1)
 
-    jacobian = kronecker_product(U_inv_transpose, V)
+    jacobian = kronecker_product(U_inv_transpose, residual_transform)
     I_nu = np.broadcast_to(np.eye(nu), (n_excited_bins, nu, nu))
 
-    cov_noise = kronecker_product(I_nu, cov_noise)
-    cov_nonlinear = kronecker_product(I_nu, cov_nonlinear)
-    cov_G_noise_expected = (
+    noise_cov = kronecker_product(I_nu, noise_cov)
+    nonlinear_cov = kronecker_product(I_nu, nonlinear_cov)
+    G_noise_cov_expected = (
         np.mean(
-            propagate_covariance(cov_noise[:, None], jacobian),
+            propagate_covariance(noise_cov[:, None], jacobian),
             axis=1,
         )
         / n_experiments
         / n_periods
     )
-    cov_G_nonlinear_expected = (
+    G_nonlinear_cov_expected = (
         np.mean(
-            propagate_covariance(cov_nonlinear[:, None], jacobian),
+            propagate_covariance(nonlinear_cov[:, None], jacobian),
             axis=1,
         )
         / n_experiments
     )
-    cov_G_total_expected = cov_G_nonlinear_expected + cov_G_noise_expected
-    return cov_G_total_expected, cov_G_noise_expected
+    G_total_cov_expected = G_nonlinear_cov_expected + G_noise_cov_expected
+    return G_total_cov_expected, G_noise_cov_expected

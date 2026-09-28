@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,7 +9,6 @@ from best_linear_approximation._array_shapes import as_batched_matrices
 from best_linear_approximation._bla import (
     EstimationMethod,
     ExperimentInfo,
-    FrequencyDomainUncertainty,
     FrequencyResponse,
     InputSpectrum,
     NonparametricBLA,
@@ -35,15 +34,22 @@ from best_linear_approximation._signal_validation import (
     SignalContract,
     SignalRanks,
 )
+from best_linear_approximation._spectra2 import (
+    compute_frequency_domain_signal,
+    compute_noise_covariance,
+    compute_output_residual_noise_covariance_noisy_input,
+    compute_output_total_covariance,
+    create_input_spectrum,
+    create_noiseless_input_spectrum,
+    create_output_spectrum,
+)
 from best_linear_approximation._typing import (
     ComplexArray,
     ExcitedBins,
-    FrequencyDomainSignal,
     RealArray,
     SamplingFrequencyHz,
     TimeDomainSignal,
 )
-
 
 KNOWN_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
@@ -114,7 +120,7 @@ def known_input(
     Returns
     -------
     NonparametricBLA
-        Frequency response and available total, noise, and nonlinear covariances.
+        Frequency response and available noise, nonlinear, and total covariances.
         
     
     References
@@ -122,6 +128,7 @@ def known_input(
     [1] Pintelon, R., and Schoukens, J. (2012).
         *System Identification: A Frequency Domain Approach*, 2nd ed.,
         Wiley-IEEE Press, ISBN 978-0-470-64037-1.
+
     """
     u, y, fs, excited_bins = _prepare_arguments_known_input(u, y, fs, excited_bins)
 
@@ -135,7 +142,7 @@ def known_input(
     )
     freq = create_frequency_info(y.shape[0], fs, excited_bins)
     experiment = ExperimentInfo.from_signals(EstimationMethod.ROBUST_DIRECT_KNOWN_INPUT, u, y)
-    
+
     return NonparametricBLA(G_bla, spectra, freq, experiment)
 
 
@@ -182,7 +189,7 @@ def noisy_input(
     Returns
     -------
     NonparametricBLA
-        Frequency response and available total, noise, and nonlinear covariances.
+        Frequency response and available noise, nonlinear, and total covariances.
         
     
     References
@@ -193,13 +200,13 @@ def noisy_input(
 
     """
     u, y, fs, excited_bins = _prepare_arguments_noisy_input(u, y, fs, excited_bins)
-    G_bla, cov_Z_noise = _compute_bla_noisy_input(u, y, excited_bins)
+    G_bla, Z_noise_cov = _compute_bla_noisy_input(u, y, excited_bins)
 
     spectra = _compute_spectra_noisy_input(
         u,
         y,
         G_bla.value,
-        cov_Z_noise,
+        Z_noise_cov,
         excited_bins,
         independent_subexperiments=independent_subexperiments,
     )
@@ -257,21 +264,19 @@ def _compute_bla_known_input(
     G = np.mean(G_per_experiment, axis=1)
 
     # BLA total covariance: (n_excited_bins, ny * nu, ny * nu)
+    G_total_cov = None
     if n_experiments > 1:
-        G_cov_total = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
-    else:
-        G_cov_total = None
+        G_total_cov = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
 
     # BLA noise covariance: (n_excited_bins, ny * nu, ny * nu)
+    G_noise_cov = None
     if n_periods > 1:
-        G_cov_noise = np.mean(
+        G_noise_cov = np.mean(
             compute_sample_covariance(vec(G_per_experiment_and_period)),
             axis=1,
         ) / (n_experiments * n_periods)
-    else:
-        G_cov_noise = None
 
-    return create_bla_frequency_response(G, G_cov_total, G_cov_noise)
+    return create_bla_frequency_response(G, G_total_cov, G_noise_cov)
 
 
 def _compute_bla_noisy_input(
@@ -293,14 +298,13 @@ def _compute_bla_noisy_input(
     )[excited_bins]
 
     # Data noise covariance: (n_excited_bins, n_experiments, (ny + nu) * nu, (ny + nu) * nu)
+    Z_noise_cov = None
     if n_periods > 1:
         Z = np.concatenate(  # (n_samples, n_experiments, n_periods, ny + nu, nu)
             (Y, U),
             axis=-2,
         )
-        cov_Z_noise = compute_sample_covariance(vec(Z)) / n_periods
-    else:
-        cov_Z_noise = None
+        Z_noise_cov = compute_sample_covariance(vec(Z))
 
     # Proceed with the period sample means
     U = np.mean(U, axis=2)  # (n_excited_bins, n_experiments, nu, nu)
@@ -313,31 +317,28 @@ def _compute_bla_noisy_input(
     G = np.mean(G_per_experiment, axis=1)
 
     # BLA total covariance: (n_excited_bins, ny * nu, ny * nu)
+    G_total_cov = None
     if n_experiments > 1:
-        G_cov_total = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
-    else:
-        G_cov_total = None
+        G_total_cov = compute_sample_covariance(vec(G_per_experiment)) / n_experiments
 
     # BLA noise covariance: (n_excited_bins, ny * nu, ny * nu)
-    if cov_Z_noise is not None:
+    G_noise_cov = None
+    if Z_noise_cov is not None:
         n_excited_bins = G.shape[0]
 
-        # Batched U^(-T)
-        U_inv_transpose = np.linalg.solve(U, np.eye(nu)).mT if nu > 1 else 1 / U
-
-        # Batched V = [I_ny, -G]
-        I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, n_experiments, ny, ny))
-        V = np.concatenate((I_ny, -G_per_experiment), axis=-1)
-
         # Batched Jacobian: (n_excited_bins, n_experiments, ny * nu, (ny + nu) * nu)
-        jacobian = kronecker_product(U_inv_transpose, V)
+        U_inv_transpose = np.linalg.solve(U, np.eye(nu)).mT if nu > 1 else 1 / U
+        I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, n_experiments, ny, ny))
+        residual_transform = np.concatenate((I_ny, -G_per_experiment), axis=-1)
+        jacobian = kronecker_product(U_inv_transpose, residual_transform)
 
-        G_cov_noise = np.mean(propagate_covariance(cov_Z_noise, jacobian), axis=1) / n_experiments
-    else:
-        G_cov_noise = None
+        G_noise_cov = np.mean(
+            propagate_covariance(Z_noise_cov, jacobian),
+            axis=1,
+        ) / (n_experiments * n_periods)
 
-    G_bla = create_bla_frequency_response(G, G_cov_total, G_cov_noise)
-    return G_bla, cov_Z_noise 
+    G_bla = create_bla_frequency_response(G, G_total_cov, G_noise_cov)
+    return G_bla, Z_noise_cov
 
 
 def _compute_spectra_known_input(
@@ -349,218 +350,104 @@ def _compute_spectra_known_input(
     independent_subexperiments: bool,
 ) -> Spectra:
     """Compute input and output spectra from known-input and noisy-output data."""
-    ny = y.shape[1]
     n_periods = y.shape[-1]
 
-    U = FrequencyDomainSignal(np.fft.rfft(u, axis=0))
-    Y = FrequencyDomainSignal(np.fft.rfft(y, axis=0))
-    U_excited = FrequencyDomainSignal(U[excited_bins])
-    Y_excited = FrequencyDomainSignal(Y[excited_bins])
+    U, U_excited = compute_frequency_domain_signal(u, excited_bins)
+    Y, Y_excited = compute_frequency_domain_signal(y, excited_bins)
 
-    input_spectrum = InputSpectrum(
-        value=U,
-        total=FrequencyDomainUncertainty.unavailable(),
-        nonlinear=FrequencyDomainUncertainty.unavailable(),
-        noise=FrequencyDomainUncertainty.unavailable(),
-    )
-
-    Y_cov_noise = _compute_noise_covariance(Y)
-    Y_cov_total_per_experiment = _compute_output_total_covariance(
+    Y_noise_cov = compute_noise_covariance(Y)
+    Y_total_cov_per_experiment = compute_output_total_covariance(
         U_excited,
         Y_excited,
         G_bla,
         independent_subexperiments=independent_subexperiments,
     )
-    
-    Y_cov_nonlinear: ComplexArray | None = None
-    Y_cov_total: ComplexArray | None = None
-    if Y_cov_total_per_experiment is not None:
-        if Y_cov_noise is None:
+
+    Y_nonlinear_cov = None
+    Y_total_cov = None
+    Y_total_equation_error_cov = None
+    if Y_total_cov_per_experiment is not None:
+        if Y_noise_cov is None:
             # Noise covariance is unavailable only when there is one period. In that
             # case, period averaging does not change the total covariance, so:
-            Y_cov_total = Y_cov_total_per_experiment
+            Y_total_cov = Y_total_cov_per_experiment
+
+            # And since the input is noiseless:
+            Y_total_equation_error_cov = Y_total_cov
         else:
-            Y_cov_nonlinear = project_onto_positive_semidefinite(
-                Y_cov_total_per_experiment - Y_cov_noise[excited_bins] / n_periods,
+            Y_nonlinear_cov = project_onto_positive_semidefinite(
+                Y_total_cov_per_experiment - Y_noise_cov[excited_bins] / n_periods,
             )
-            Y_cov_total = Y_cov_nonlinear + Y_cov_noise[excited_bins]
-            
-    output_total_uncertainty = (
-        FrequencyDomainUncertainty.from_cov(Y_cov_total, (ny,))
-        if Y_cov_total is not None
-        else FrequencyDomainUncertainty.unavailable()
-    )
-    
-    output_spectrum = OutputSpectrum(
-        value=Y,
-        total=output_total_uncertainty,
-        nonlinear=(
-            FrequencyDomainUncertainty.from_cov(Y_cov_nonlinear, (ny,))
-            if Y_cov_nonlinear is not None
-            else FrequencyDomainUncertainty.unavailable()
-        ),
-        noise=(
-            FrequencyDomainUncertainty.from_cov(Y_cov_noise, (ny,))
-            if Y_cov_noise is not None
-            else FrequencyDomainUncertainty.unavailable()
-        ),
-        total_equation_error=output_total_uncertainty,
+            Y_total_cov = Y_nonlinear_cov + Y_noise_cov[excited_bins]
+
+            # Since the input is noiseless:
+            Y_total_equation_error_cov = Y_total_cov
+
+    input_spectrum = create_noiseless_input_spectrum(U)
+    output_spectrum = create_output_spectrum(
+        Y,
+        Y_noise_cov,
+        Y_nonlinear_cov,
+        Y_total_cov,
+        Y_total_equation_error_cov,
     )
     return Spectra(input_spectrum, output_spectrum)
 
 
-# def _compute_spectra_noisy_input(
-#     u: TimeDomainSignal,
-#     y: TimeDomainSignal,
-#     G_bla: ComplexArray,  # noqa: N803
-#     cov_Z_noise: ComplexArray | None,
-#     excited_bins: ExcitedBins,
-#     *,
-#     independent_subexperiments: bool,
-# ) -> Spectra:
-#     """Compute input and output spectra from noisy input-output data."""
-#     ny, nu, _, _ = y.shape[1:]
-
-#     U = FrequencyDomainSignal(np.fft.rfft(u, axis=0))
-#     Y = FrequencyDomainSignal(np.fft.rfft(y, axis=0))
-#     U_excited = FrequencyDomainSignal(U[excited_bins])
-#     Y_excited = FrequencyDomainSignal(Y[excited_bins])
-    
-#     U_cov_noise = _compute_noise_covariance(U)
-#     Y_cov_noise = _compute_noise_covariance(Y)
-    
-#     Y_cov_residual_noise_per_experiment = _compute_residual_noise_covariance_noisy_input(
-#         cov_Z_noise,
-#         G_bla,
-#         nu,
-#     )
-
-#     input_spectrum = InputSpectrum(
-#         value=U,
-#         total=FrequencyDomainUncertainty.unavailable(),
-#         nonlinear=FrequencyDomainUncertainty.unavailable(),
-#         noise=(
-#             FrequencyDomainUncertainty.from_cov(U_cov_noise, (nu,))
-#             if U_cov_noise is not None
-#             else FrequencyDomainUncertainty.unavailable()
-#         ),
-#     )
-    
-#     Y_cov_total_per_experiment = _compute_output_total_covariance(
-#         U_excited,
-#         Y_excited,
-#         G_bla,
-#         independent_subexperiments=independent_subexperiments,
-#     )
-
-#     Y_cov_nonlinear: ComplexArray | None = None
-#     Y_cov_total: ComplexArray | None = None
-#     if Y_cov_total_per_experiment is not None:
-#         if Y_cov_noise is None:
-#             # Noise covariance is unavailable only when there is one period. In that
-#             # case, period averaging does not change the total covariance.
-#             Y_cov_total = Y_cov_total_per_experiment
-#         else:
-#             Y_cov_nonlinear = project_onto_positive_semidefinite(
-#                 Y_cov_total_per_experiment - Y_cov_residual_noise_per_experiment,
-#             )
-#             Y_cov_total = Y_cov_nonlinear + Y_cov_noise[excited_bins]
-
-#     output_spectrum = OutputSpectrum(
-#         value=Y,
-#         total=(
-#             FrequencyDomainUncertainty.from_cov(Y_cov_total, (ny,))
-#             if Y_cov_total is not None
-#             else FrequencyDomainUncertainty.unavailable()
-#         ),
-#         nonlinear=(
-#             FrequencyDomainUncertainty.from_cov(Y_cov_nonlinear, (ny,))
-#             if Y_cov_nonlinear is not None
-#             else FrequencyDomainUncertainty.unavailable()
-#         ),
-#         noise=(
-#             FrequencyDomainUncertainty.from_cov(Y_cov_noise, (ny,))
-#             if Y_cov_noise is not None
-#             else FrequencyDomainUncertainty.unavailable()
-#         ),
-#     )
-#     return Spectra(input_spectrum, output_spectrum)
-
-
-def _compute_noise_covariance(
-    signal: FrequencyDomainSignal,
-) -> ComplexArray | None:
-    """Compute the averaged noise covariance over periods."""
-    n_periods = signal.shape[-1]
-    if n_periods == 1:
-        return None
-
-    signal = np.moveaxis(signal, 1, -1)  # (n_bins, nu, n_experiments, n_periods, ny)
-    return np.mean(compute_sample_covariance(signal), axis=(1, 2))
-
-
-def _compute_residual_noise_covariance_noisy_input(
-    cov_Z_noise: ComplexArray | None,
+def _compute_spectra_noisy_input(
+    u: TimeDomainSignal,
+    y: TimeDomainSignal,
     G_bla: ComplexArray,  # noqa: N803
-    nu: int,
-) -> ComplexArray | None:
-    """Compute covariance of the period-averaged residual measurement noise."""
-    if cov_Z_noise is None:
-        return None
-
-    n_excited_bins, n_experiments = cov_Z_noise.shape[:2]
-    ny = G_bla.shape[1]
-    I_ny = np.broadcast_to(np.eye(ny), (n_excited_bins, ny, ny))
-    residual_transform = np.concatenate((I_ny, -G_bla), axis=-1)
-    I_nu = np.broadcast_to(np.eye(nu), (n_excited_bins, nu, nu))
-    jacobian = kronecker_product(I_nu, residual_transform)[:, None]
-    cov_residual = propagate_covariance(cov_Z_noise, jacobian)
-    cov_residual = cov_residual.reshape(n_excited_bins, n_experiments, nu, ny, nu, ny)
-    cov_by_input_direction = np.diagonal(cov_residual, axis1=2, axis2=4)
-    return np.mean(cov_by_input_direction, axis=(1, -1))
-
-
-def _compute_output_total_covariance(
-    U_excited: FrequencyDomainSignal,  # noqa: N803
-    Y_excited: FrequencyDomainSignal,  # noqa: N803
-    G_bla: ComplexArray,  # noqa: N803
+    Z_noise_cov: ComplexArray | None,
+    excited_bins: ExcitedBins,
     *,
     independent_subexperiments: bool,
-) -> ComplexArray | None:
-    """Estimate covariance of the period-averaged output residuals.
+) -> Spectra:
+    """Compute input and output spectra from noisy input-output data."""
+    nu, _, n_periods = y.shape[2:]
 
-    The residual is ``Y - G_bla @ U``. Its period-averaged total covariance is
+    U, U_excited = compute_frequency_domain_signal(u, excited_bins)
+    Y, Y_excited = compute_frequency_domain_signal(y, excited_bins)
 
-    ``Cov(Y_nonlinear) + Cov(Y_noise - G_bla @ U_noise) / n_periods``.
+    U_noise_cov, Y_noise_cov = compute_noise_covariance(U), compute_noise_covariance(Y)
 
-    If ``independent_subexperiments`` is ``True``, experiment and subexperiment
-    samples are treated as independent realizations and pooled before estimating
-    the covariance. If ``False``, covariance is estimated across experiments for
-    each subexperiment and then averaged across subexperiments.
-    """
-    n_excited_bins = U_excited.shape[0]
-    ny, nu, n_experiments = Y_excited.shape[1:4]
-    
-    U_excited = as_batched_matrices(U_excited)
-    Y_excited = as_batched_matrices(Y_excited)
+    Y_total_cov_per_experiment = compute_output_total_covariance(
+        U_excited,
+        Y_excited,
+        G_bla,
+        independent_subexperiments=independent_subexperiments,
+    )
 
-    n_realizations = n_experiments * nu if independent_subexperiments else n_experiments
-    if n_realizations == 1:
-        return None
+    Y_residual_noise_cov = compute_output_residual_noise_covariance_noisy_input(
+        Z_noise_cov,
+        G_bla,
+        nu,
+    )
 
-    # Period-averaged output residual: (n_excited_bins, n_experiments, ny, nu)
-    Y_residual = np.mean(Y_excited - G_bla[:, None, None] @ U_excited, axis=2)
+    Y_nonlinear_cov = None
+    Y_total_cov = None
+    Y_total_equation_error_cov = None
+    if Y_total_cov_per_experiment is not None:
+        if Y_residual_noise_cov is None or Y_noise_cov is None:
+            # Noise covariance is unavailable only when there is one period. In that
+            # case, period averaging does not change the total covariance, so:
+            Y_total_equation_error_cov = Y_total_cov_per_experiment
+        else:
+            Y_nonlinear_cov = project_onto_positive_semidefinite(
+                Y_total_cov_per_experiment - Y_residual_noise_cov / n_periods,
+            )
+            Y_total_cov = Y_nonlinear_cov + Y_noise_cov[excited_bins]
+            Y_total_equation_error_cov = Y_nonlinear_cov + Y_residual_noise_cov
 
-    if independent_subexperiments:
-        # Estimate covariance jointly across experiments and subexperiments
-        Y_residual = Y_residual.transpose(0, 1, 3, 2).reshape(n_excited_bins, n_realizations, ny)
-        Y_cov_total = compute_sample_covariance(Y_residual)
-    else:
-        # Estimate covariance across experiments for each subexperiment, then average
-        Y_residual = Y_residual.transpose(0, 3, 1, 2)  # (n_excited_bins, nu, n_experiments, ny)
-        Y_cov_total = np.mean(compute_sample_covariance(Y_residual), axis=1)
-
-    return Y_cov_total
+    input_spectrum = create_input_spectrum(U, U_noise_cov, None, None)
+    output_spectrum = create_output_spectrum(
+        Y,
+        Y_noise_cov,
+        Y_nonlinear_cov,
+        Y_total_cov,
+        Y_total_equation_error_cov,
+    )
+    return Spectra(input_spectrum, output_spectrum)
 
 
 if __name__ == "__main__":
@@ -572,22 +459,19 @@ if __name__ == "__main__":
     )
 
     data = load_parallel_wiener_hammerstein()["ParWH-amp-4"]
-    u = np.mean(data.u, axis=-1)  # average over periods
-    bla = known_input(u, data.y, data.fs, data.excited_bins)
-    freqs = bla.freq.freqs
-    excited_freqs = freqs[bla.freq.excited_bins]
-
-    U = bla.spectra.U.value
-    Y = bla.spectra.Y.value
-    reduction_axes = (2, 3, 4)
-    U_magnitude = np.mean(np.abs(U), axis=reduction_axes)
-    Y_magnitude = np.mean(np.abs(Y), axis=reduction_axes)
+    u_known = np.mean(data.u, axis=-1)  # average over periods
+    bla_known = known_input(u_known, data.y, data.fs, data.excited_bins)
+    bla_noisy = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    blas = {"known": bla_known, "noisy": bla_noisy}
+    freqs = bla_known.freq.freqs
+    excited_freqs = freqs[bla_known.freq.excited_bins]
 
     def plot_uncertainties(
         axis: Any,
         estimate: FrequencyResponse | InputSpectrum | OutputSpectrum,
         label: str,
         indices: tuple[int, ...],
+        linestyle: str,
     ) -> None:
         """Plot available marginal standard deviations for one spectral component."""
         for uncertainty_name in ("total", "nonlinear", "noise"):
@@ -603,25 +487,44 @@ if __name__ == "__main__":
             axis.plot(
                 uncertainty_freqs,
                 20 * np.log10(component),
-                linestyle="--",
+                linestyle=linestyle,
                 label=f"{label} {uncertainty_name} std",
             )
 
     fig, axes = plt.subplots(3, 1, sharex=True, layout="constrained")
-    for input_channel in range(bla.experiment.nu):
-        axes[0].plot(freqs, 20 * np.log10(U_magnitude[:, input_channel]), label=f"U[{input_channel}]")
-        plot_uncertainties(axes[0], bla.spectra.U, f"U[{input_channel}]", (input_channel,))
-    for output_channel in range(bla.experiment.ny):
-        axes[1].plot(freqs, 20 * np.log10(Y_magnitude[:, output_channel]), label=f"Y[{output_channel}]")
-        plot_uncertainties(axes[1], bla.spectra.Y, f"Y[{output_channel}]", (output_channel,))
+    for method, bla in blas.items():
+        linestyle = "--" if method == "noisy" else "-"
+        U = bla.spectra.U.value
+        Y = bla.spectra.Y.value
+        U_magnitude = np.mean(np.abs(U), axis=tuple(range(2, U.ndim)))
+        Y_magnitude = np.mean(np.abs(Y), axis=tuple(range(2, Y.ndim)))
         for input_channel in range(bla.experiment.nu):
-            label = f"G[{output_channel}, {input_channel}]"
-            axes[2].plot(
-                excited_freqs,
-                20 * np.log10(np.abs(bla.G.value[:, output_channel, input_channel])),
+            label = f"{method} U[{input_channel}]"
+            axes[0].plot(
+                freqs,
+                20 * np.log10(U_magnitude[:, input_channel]),
+                linestyle=linestyle,
                 label=label,
             )
-            plot_uncertainties(axes[2], bla.G, label, (output_channel, input_channel))
+            plot_uncertainties(axes[0], bla.spectra.U, label, (input_channel,), linestyle)
+        for output_channel in range(bla.experiment.ny):
+            label = f"{method} Y[{output_channel}]"
+            axes[1].plot(
+                freqs,
+                20 * np.log10(Y_magnitude[:, output_channel]),
+                linestyle=linestyle,
+                label=label,
+            )
+            plot_uncertainties(axes[1], bla.spectra.Y, label, (output_channel,), linestyle)
+            for input_channel in range(bla.experiment.nu):
+                label = f"{method} G[{output_channel}, {input_channel}]"
+                axes[2].plot(
+                    excited_freqs,
+                    20 * np.log10(np.abs(bla.G.value[:, output_channel, input_channel])),
+                    linestyle=linestyle,
+                    label=label,
+                )
+                plot_uncertainties(axes[2], bla.G, label, (output_channel, input_channel), linestyle)
 
     axes[0].set_ylabel("input magnitude [dB]")
     axes[1].set_ylabel("output magnitude [dB]")
@@ -631,28 +534,46 @@ if __name__ == "__main__":
         axis.legend()
 
     data = load_fine_steering_mirror()["train 300mV"]
-    u = np.mean(data.u, axis=-1)
-    bla = known_input(u, data.y, data.fs, data.excited_bins)
-    freqs = bla.freq.freqs
-    excited_freqs = freqs[bla.freq.excited_bins]
-    U = bla.spectra.U.value
-    Y = bla.spectra.Y.value
-    U_magnitude = np.mean(np.abs(U), axis=reduction_axes)
-    Y_magnitude = np.mean(np.abs(Y), axis=reduction_axes)
+    u_known = np.mean(data.u, axis=-1)
+    bla_known = known_input(u_known, data.y, data.fs, data.excited_bins)
+    bla_noisy = noisy_input(data.u, data.y, data.fs, data.excited_bins)
+    blas = {"known": bla_known, "noisy": bla_noisy}
+    freqs = bla_known.freq.freqs
+    excited_freqs = freqs[bla_known.freq.excited_bins]
 
     fig_spectra, spectrum_axes = plt.subplots(
-        bla.experiment.ny,
+        bla_known.experiment.ny,
         2,
         sharex=True,
         layout="constrained",
         squeeze=False,
     )
-    for channel in range(bla.experiment.ny):
+    for method, bla in blas.items():
+        linestyle = "--" if method == "noisy" else "-"
+        U = bla.spectra.U.value
+        Y = bla.spectra.Y.value
+        U_magnitude = np.mean(np.abs(U), axis=tuple(range(2, U.ndim)))
+        Y_magnitude = np.mean(np.abs(Y), axis=tuple(range(2, Y.ndim)))
+        for channel in range(bla.experiment.ny):
+            input_axis, output_axis = spectrum_axes[channel]
+            input_label = f"{method} U[{channel}]"
+            output_label = f"{method} Y[{channel}]"
+            input_axis.plot(
+                freqs,
+                20 * np.log10(U_magnitude[:, channel]),
+                linestyle=linestyle,
+                label=input_label,
+            )
+            plot_uncertainties(input_axis, bla.spectra.U, input_label, (channel,), linestyle)
+            output_axis.plot(
+                freqs,
+                20 * np.log10(Y_magnitude[:, channel]),
+                linestyle=linestyle,
+                label=output_label,
+            )
+            plot_uncertainties(output_axis, bla.spectra.Y, output_label, (channel,), linestyle)
+    for channel in range(bla_known.experiment.ny):
         input_axis, output_axis = spectrum_axes[channel]
-        input_axis.plot(freqs, 20 * np.log10(U_magnitude[:, channel]), label=f"U[{channel}]")
-        plot_uncertainties(input_axis, bla.spectra.U, f"U[{channel}]", (channel,))
-        output_axis.plot(freqs, 20 * np.log10(Y_magnitude[:, channel]), label=f"Y[{channel}]")
-        plot_uncertainties(output_axis, bla.spectra.Y, f"Y[{channel}]", (channel,))
         input_axis.set_ylabel(f"channel {channel} [dB]")
         input_axis.legend()
         output_axis.legend()
@@ -663,27 +584,33 @@ if __name__ == "__main__":
     spectrum_axes[-1, 1].set_xlabel("frequency [Hz]")
 
     fig_frf, frf_axes = plt.subplots(
-        bla.experiment.ny,
-        bla.experiment.nu,
+        bla_known.experiment.ny,
+        bla_known.experiment.nu,
         sharex=True,
         layout="constrained",
         squeeze=False,
     )
-    for output_channel in range(bla.experiment.ny):
-        for input_channel in range(bla.experiment.nu):
+    for method, bla in blas.items():
+        linestyle = "--" if method == "noisy" else "-"
+        for output_channel in range(bla.experiment.ny):
+            for input_channel in range(bla.experiment.nu):
+                axis = frf_axes[output_channel, input_channel]
+                label = f"{method} G[{output_channel}, {input_channel}]"
+                axis.plot(
+                    excited_freqs,
+                    20 * np.log10(np.abs(bla.G.value[:, output_channel, input_channel])),
+                    linestyle=linestyle,
+                    label=label,
+                )
+                plot_uncertainties(axis, bla.G, label, (output_channel, input_channel), linestyle)
+    for output_channel in range(bla_known.experiment.ny):
+        for input_channel in range(bla_known.experiment.nu):
             axis = frf_axes[output_channel, input_channel]
-            label = f"G[{output_channel}, {input_channel}]"
-            axis.plot(
-                excited_freqs,
-                20 * np.log10(np.abs(bla.G.value[:, output_channel, input_channel])),
-                label=label,
-            )
-            plot_uncertainties(axis, bla.G, label, (output_channel, input_channel))
             axis.legend()
 
-    for input_channel in range(bla.experiment.nu):
+    for input_channel in range(bla_known.experiment.nu):
         frf_axes[-1, input_channel].set_xlabel("frequency [Hz]")
-    for output_channel in range(bla.experiment.ny):
+    for output_channel in range(bla_known.experiment.ny):
         frf_axes[output_channel, 0].set_ylabel(f"output {output_channel} [dB]")
     plt.show()
 
@@ -871,7 +798,7 @@ if __name__ == "__main__" and False:
 #     data = load_f16()["F16Data_SpecialOddMSine_Level3.mat"]
 #     r = data.r.mean(axis=-1)
 #     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-#     G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
+#     G, total_cov, noise_cov = bla.G.value, bla.G.total.cov, bla.G.noise.cov
 
 #     print(data.u.shape)
 
@@ -880,40 +807,40 @@ if __name__ == "__main__" and False:
 #     plt.figure()
 #     plt.subplot(3, 1, 1)
 #     plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
-#     plt.plot(to_db(np.sqrt(cov_total[:, 0, 0])), label="cov_total[0, 0]")
-#     plt.plot(to_db(np.sqrt(cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+#     plt.plot(to_db(np.sqrt(total_cov[:, 0, 0])), label="total_cov[0, 0]")
+#     plt.plot(to_db(np.sqrt(noise_cov[:, 0, 0])), label="noise_cov[0, 0]")
 #     plt.legend()
 #     plt.subplot(3, 1, 2)
 #     plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-#     plt.plot(to_db(np.sqrt(cov_total[:, 1, 1])), label="cov_total[1, 0]")
-#     plt.plot(to_db(np.sqrt(cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+#     plt.plot(to_db(np.sqrt(total_cov[:, 1, 1])), label="total_cov[1, 0]")
+#     plt.plot(to_db(np.sqrt(noise_cov[:, 1, 1])), label="noise_cov[1, 0]")
 #     plt.legend()
 #     plt.subplot(3, 1, 3)
 #     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-#     plt.plot(to_db(np.sqrt(cov_total[:, 2, 2])), label="cov_total[2, 0]")
-#     plt.plot(to_db(np.sqrt(cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+#     plt.plot(to_db(np.sqrt(total_cov[:, 2, 2])), label="total_cov[2, 0]")
+#     plt.plot(to_db(np.sqrt(noise_cov[:, 2, 2])), label="noise_cov[2, 0]")
 #     plt.legend()
 #     plt.show()
 
 #     data = load_f16()["F16Data_FullMSine_Level3.mat"]
 #     r = data.r.mean(axis=-1)
 #     bla = noisy_input(data.u, data.y, data.fs, data.excited_bins)
-#     G, cov_total, cov_noise = bla.G.value, bla.G.total.cov, bla.G.noise.cov
+#     G, total_cov, noise_cov = bla.G.value, bla.G.total.cov, bla.G.noise.cov
 
 #     # create 3x1 subplots
 #     plt.figure()
 #     plt.subplot(3, 1, 1)
 #     plt.plot(to_db(G[:, 0, 0]), label="G[0, 0]")
 
-#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 0, 0])), label="cov_noise[0, 0]")
+#     plt.plot(to_db(np.sqrt(8*noise_cov[:, 0, 0])), label="noise_cov[0, 0]")
 #     plt.legend()
 #     plt.subplot(3, 1, 2)
 #     plt.plot(to_db(G[:, 1, 0]), label="G[1, 0]")
-#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 1, 1])), label="cov_noise[1, 0]")
+#     plt.plot(to_db(np.sqrt(8*noise_cov[:, 1, 1])), label="noise_cov[1, 0]")
 #     plt.legend()
 #     plt.subplot(3, 1, 3)
 #     plt.plot(to_db(G[:, 2, 0]), label="G[2, 0]")
-#     plt.plot(to_db(np.sqrt(8*cov_noise[:, 2, 2])), label="cov_noise[2, 0]")
+#     plt.plot(to_db(np.sqrt(8*noise_cov[:, 2, 2])), label="noise_cov[2, 0]")
 #     plt.legend()
 #     plt.show()
 

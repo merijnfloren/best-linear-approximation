@@ -11,12 +11,13 @@ from best_linear_approximation._bla import (
     OutputSpectrum,
     Spectra,
 )
+
 __all__ = [
-    "FrequencyInfo",
-    "FrequencyDomainUncertainty",
-    "FrequencyResponse",
     "EstimationMethod",
     "ExperimentInfo",
+    "FrequencyDomainUncertainty",
+    "FrequencyInfo",
+    "FrequencyResponse",
     "InputSpectrum",
     "NonparametricBLA",
     "OutputSpectrum",
