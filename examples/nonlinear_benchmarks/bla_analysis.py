@@ -123,7 +123,7 @@ def _plot_spectra(
             fontweight="bold",
         )
         if axis is flat_axes[0]:
-            axis.set_ylabel("magnitude [dB]")
+            axis.set_ylabel("DFT-bin magnitude [dB]")
 
     _finish_figure(axes, result, full_frequency_band=True)
     _center_title(figure, title)
