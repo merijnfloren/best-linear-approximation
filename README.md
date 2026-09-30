@@ -150,7 +150,7 @@ uv add best-linear-approximation
 
 If you wish to use the benchmark dataloader, replace `best-linear-approximation` in either command with `"best-linear-approximation[benchmarks]"`.
 This installs the additional required dependencies.
-Calling a benchmark loader may download its data to the local cache when it is not already available.
+Calling a benchmark loader will download its data to the local cache when it is not already available.
 
 ## Related packages
 
