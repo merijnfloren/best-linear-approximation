@@ -25,7 +25,7 @@ This is useful in control applications, where including actuator dynamics in the
 ### Noisy input
 
 When the aim is to identify the nonlinear system itself, measure the signal that enters it as $u$.
-This introduces input measurement noise, which can adversely affect the estimate.
+However, this makes $u$ a noise-corrupted measurement of the true input, which biases the BLA estimate.
 
 <p align="center">
   <img src="docs/noisy_input.drawio.svg" alt="Noisy-input measurement setup" width="569">
