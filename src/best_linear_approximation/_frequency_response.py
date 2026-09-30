@@ -1,5 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from best_linear_approximation._linear_algebra import right_solve
-from best_linear_approximation._typing import ComplexArray
+
+if TYPE_CHECKING:
+    from best_linear_approximation._typing import ComplexArray
 
 
 def compute_frequency_response(

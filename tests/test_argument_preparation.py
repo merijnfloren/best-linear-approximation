@@ -16,7 +16,7 @@ from best_linear_approximation._dataloader import (
 )
 from best_linear_approximation._exceptions import (
     PossibleExcitationAmplitudeMismatchWarning,
-    PossibleTransientWarning,
+    PossiblePeriodMismatchWarning,
 )
 from best_linear_approximation._typing import TimeDomainSignal
 from best_linear_approximation.robust._direct_methods import KNOWN_INPUT_CONTRACTS
@@ -78,7 +78,7 @@ def test_warn_if_output_spectra_mismatch_low_max_bin_ignores_higher_frequency_ch
         warnings.simplefilter("error")
         _warn_if_output_spectra_mismatch(y, max_bin=3)
 
-    with pytest.warns(PossibleTransientWarning):
+    with pytest.warns(PossiblePeriodMismatchWarning):
         _warn_if_output_spectra_mismatch(y, max_bin=4)
 
 
@@ -92,7 +92,7 @@ def test_warn_if_output_spectra_mismatch_handles_different_channel_scales() -> N
     scaled_y = y * np.array([1e-3, 1e3])
     scaled_y = TimeDomainSignal(scaled_y[:, :, None, None, :])
 
-    with pytest.warns(PossibleTransientWarning):
+    with pytest.warns(PossiblePeriodMismatchWarning):
         _warn_if_output_spectra_mismatch(scaled_y, max_bin=3)
 
 

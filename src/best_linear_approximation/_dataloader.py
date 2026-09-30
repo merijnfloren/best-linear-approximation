@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 import math
 from pathlib import Path
-from typing import Any, NamedTuple, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, cast
 
 import numpy as np
 
 from best_linear_approximation._config import DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS
 from best_linear_approximation._spectral_validation import detect_excited_bins
-from best_linear_approximation._typing import ExcitedBins, RealArray, SamplingFrequencyHz
+from best_linear_approximation._typing import RealArray
+
+if TYPE_CHECKING:
+    from best_linear_approximation._typing import ExcitedBins, SamplingFrequencyHz
 
 
 class DataBLA[ReferenceSignal: RealArray | None](NamedTuple):
@@ -47,7 +52,7 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[RealArray]
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
-        
+
         The specific keys are:
         - ``F16Data_FullMSine_Level1.mat``
         - ``F16Data_FullMSine_Level3.mat``
@@ -86,7 +91,7 @@ def load_f16(*, return_transients: bool = False) -> dict[str, DataBLA[RealArray]
             r = np.array(out["Voltage"])
             u = np.array(out["Force"])
             y = np.array(out["Acceleration"])
-            fs = SamplingFrequencyHz(out["Fs"][0, 0])
+            fs = cast("SamplingFrequencyHz", out["Fs"][0, 0])
             nu, ny = 1, 3
             if "FullMSine" in name:
                 n_samples, n_realizations, n_periods = 8192, 1, 9
@@ -144,12 +149,12 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
-        
+
         The specific keys are:
         - ``train 100mV``
         - ``train 200mV``
         - ``train 300mV``
-    
+
     """
     nlb = _load_benchmark_module()
 
@@ -169,8 +174,8 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
             r=None,
             u=u,
             y=y,
-            fs=SamplingFrequencyHz(fs),
-            excited_bins=ExcitedBins(excited_bins),
+            fs=cast("SamplingFrequencyHz", fs),
+            excited_bins=cast("ExcitedBins", excited_bins),
         )
 
     return bla_data
@@ -197,7 +202,7 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
-        
+
         The specific keys are:
         - ``ParWH-amp-0``
         - ``ParWH-amp-1``
@@ -211,7 +216,7 @@ def load_parallel_wiener_hammerstein() -> dict[str, DataBLA[None]]:
     nu, ny = 1, 1
     n_samples, n_realizations, n_periods = 16384, 20, 2
 
-    fs = SamplingFrequencyHz(78_000)
+    fs = cast("SamplingFrequencyHz", 78_000)
     amplitudes = [0, 1, 2, 3, 4]
 
     nlb_data = cast("list[Any]", nlb.ParWH()[0])
@@ -277,7 +282,7 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
     dict[str, DataBLA]
         Datasets keyed by name. Each value contains signals, sampling frequency,
         and excited frequency bins.
-        
+
         The specific keys are:
         - ``train SB multisine``
 
@@ -291,8 +296,8 @@ def load_silverbox() -> dict[str, DataBLA[None]]:
 
     # Quantities taken from the Silverbox paper
     n_zero = 100  # number of zero-valued samples separating the blocks
-    fs = SamplingFrequencyHz(1e7 / 2**14)
-    excited_bins = ExcitedBins(np.arange(1, 2 * 1342, 2))
+    fs = cast("SamplingFrequencyHz", 1e7 / 2**14)
+    excited_bins = cast("ExcitedBins", np.arange(1, 2 * 1342, 2))
 
     # Discard transient samples
     n_transient_init = 164  # first realization

@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 from numbers import Real
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
-from numpy.typing import NDArray
 
 from best_linear_approximation._exceptions import NoExcitedBinsError
 from best_linear_approximation._misc import standardize_channels
-from best_linear_approximation._typing import ExcitedBins, RealArray, SamplingFrequencyHz
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from best_linear_approximation._typing import ExcitedBins, RealArray, SamplingFrequencyHz
 
 MultisineType = Literal["full", "odd", "even", "special-odd", "special-even", "special-mixed"]
 
@@ -29,7 +34,7 @@ def validate_sampling_frequency(fs: float) -> SamplingFrequencyHz:
         msg = f"Sampling frequency must be finite and strictly positive, got {fs!r}."
         raise ValueError(msg)
 
-    return SamplingFrequencyHz(fs)
+    return cast("SamplingFrequencyHz", fs)
 
 
 def resolve_excited_bins(
@@ -72,7 +77,7 @@ def resolve_excited_bins(
             )
             raise ValueError(msg)
 
-        return ExcitedBins(excited_bins)
+        return cast("ExcitedBins", excited_bins)
 
     if isinstance(excited_bins, (float, np.floating)):
         relative_threshold = excited_bins
@@ -151,7 +156,7 @@ def detect_excited_bins(
         )
         raise NoExcitedBinsError(msg)
 
-    excited_bins = ExcitedBins(excited_bins)
+    excited_bins = cast("ExcitedBins", excited_bins)
 
     if print_summary:
         multisine_type = _classify_multisine_type(excited_bins)

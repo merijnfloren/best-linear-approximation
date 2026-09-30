@@ -1,19 +1,16 @@
-from collections.abc import Mapping
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
 
 from best_linear_approximation._argument_preparation import prepare_arguments
 from best_linear_approximation._array_shapes import as_batched_matrices
 from best_linear_approximation._bla import (
     EstimationMethod,
     ExperimentInfo,
-    FrequencyDomainUncertainty,
     FrequencyResponse,
-    InputSpectrum,
     NonparametricBLA,
-    OutputSpectrum,
-    Spectra,
     create_bla_frequency_response,
     create_frequency_info,
 )
@@ -34,7 +31,10 @@ from best_linear_approximation._signal_validation import (
     SignalContract,
     SignalRanks,
 )
-from best_linear_approximation._spectra2 import (
+from best_linear_approximation._spectra import (
+    InputSpectrum,
+    OutputSpectrum,
+    Spectra,
     compute_frequency_domain_signal,
     compute_noise_covariance,
     compute_output_residual_noise_covariance_noisy_input,
@@ -43,14 +43,21 @@ from best_linear_approximation._spectra2 import (
     create_noiseless_input_spectrum,
     create_output_spectrum,
 )
-from best_linear_approximation._typing import (
-    ComplexArray,
-    ExcitedBins,
-    FrequencyDomainSignal,
-    RealArray,
-    SamplingFrequencyHz,
-    TimeDomainSignal,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from matplotlib.axes import Axes
+    from numpy.typing import NDArray
+
+    from best_linear_approximation._typing import (
+        ComplexArray,
+        ExcitedBins,
+        FrequencyDomainSignal,
+        RealArray,
+        SamplingFrequencyHz,
+        TimeDomainSignal,
+    )
 
 INDIRECT_CONTRACTS: Mapping[ContractType, SignalContract] = {
     ContractType.REALIZATION: SignalContract(
@@ -81,6 +88,10 @@ def known_reference(  # noqa: PLR0913
 ) -> NonparametricBLA:
     """Estimate a BLA using a known reference as an instrumental variable.
 
+    Reference, input, and output measurements must all use the same layout:
+    either realization layout or experiment layout (see below). All dimensions
+    shown below must be present, including singleton dimensions.
+
     Parameters
     ----------
     r : RealArray
@@ -98,18 +109,28 @@ def known_reference(  # noqa: PLR0913
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
-        bins. A float in ``(0, 1)`` instead selects them automatically from
-        the clean reference ``r``: bins whose channel-averaged spectral
-        magnitude exceeds this fraction of the maximum magnitude are selected.
+        If provided as an array, specifies strictly increasing indices of the
+        excited non-DC, non-Nyquist ``rfft`` bins. Otherwise, if provided as a
+        float in ``(0, 1)``, selects them automatically from ``r`` using the
+        mean spectral magnitude across normalized input channels. Bins exceeding
+        this fraction of the maximum magnitude are selected.
     independent_subexperiments : bool, default=False
-        Whether subexperiments are treated as independent realizations when
-        estimating total covariances.
+        Only relevant for multi-input data. If True, subexperiments are treated
+        as independent realizations when estimating the total covariance, allowing
+        experiments and subexperiments to be pooled. This requires an excitation
+        design that makes the stochastic nonlinear distortions independent across
+        subexperiments, such as full random orthogonal multisines [1, Eq. (3-31)].
+
+        If False, covariance is estimated across experiments separately for
+        each subexperiment and then averaged over subexperiments. This makes
+        no independence assumption across subexperiments, but uses fewer
+        independent samples and is therefore less statistically efficient.
 
     Returns
     -------
     NonparametricBLA
-        Frequency response and available noise, nonlinear, and total covariances.
+        Best linear approximation with its frequency response, spectra and their
+        uncertainties, frequency metadata, and experiment metadata.
 
     """
     r, u, y, fs, excited_bins = _prepare_arguments_indirect(r, u, y, fs, excited_bins)
@@ -144,6 +165,10 @@ def closed_loop(  # noqa: PLR0913
 ) -> NonparametricBLA:
     """Estimate a closed-loop BLA using a known reference.
 
+    Reference, input, and output measurements must all use the same layout:
+    either realization layout or experiment layout (see below). All dimensions
+    shown below must be present, including singleton dimensions.
+
     Parameters
     ----------
     r : RealArray
@@ -161,19 +186,28 @@ def closed_loop(  # noqa: PLR0913
     fs : float
         Sampling frequency in Hz.
     excited_bins : NDArray[np.int_] or float, optional
-        Strictly increasing indices of the excited non-DC, non-Nyquist ``rfft``
-        bins. A float in ``(0, 1)`` instead selects them automatically from
-        the clean reference ``r``: bins whose channel-averaged spectral
-        magnitude exceeds this fraction of the maximum magnitude are selected.
-
+        If provided as an array, specifies strictly increasing indices of the
+        excited non-DC, non-Nyquist ``rfft`` bins. Otherwise, if provided as a
+        float in ``(0, 1)``, selects them automatically from ``r`` using the
+        mean spectral magnitude across normalized input channels. Bins exceeding
+        this fraction of the maximum magnitude are selected.
     independent_subexperiments : bool, default=False
-        Whether subexperiments are treated as independent realizations when
-        estimating total covariances.
+        Only relevant for multi-input data. If True, subexperiments are treated
+        as independent realizations when estimating the total covariance, allowing
+        experiments and subexperiments to be pooled. This requires an excitation
+        design that makes the stochastic nonlinear distortions independent across
+        subexperiments, such as full random orthogonal multisines [1, Eq. (3-31)].
+
+        If False, covariance is estimated across experiments separately for
+        each subexperiment and then averaged over subexperiments. This makes
+        no independence assumption across subexperiments, but uses fewer
+        independent samples and is therefore less statistically efficient.
 
     Returns
     -------
     NonparametricBLA
-        Frequency response and available noise, nonlinear, and total covariances.
+        Best linear approximation with its frequency response, spectra and their
+        uncertainties, frequency metadata, and experiment metadata.
 
     """
     return known_reference(
@@ -289,7 +323,13 @@ def _compute_bla_indirect(
         if Z_R_noise_cov is not None:
             G_noise_cov = propagate_covariance(Z_R_noise_cov, jacobian)
 
-    G_bla = create_bla_frequency_response(G, G_total_cov, G_noise_cov)
+    G_bla = create_bla_frequency_response(
+        G,
+        G_total_cov,
+        G_noise_cov,
+        u.shape[0],
+        excited_bins,
+    )
     return G_bla, Z_noise_cov
 
 
@@ -297,7 +337,7 @@ def _compute_spectra_indirect(  # noqa: PLR0913, PLR0917
     r: TimeDomainSignal,
     u: TimeDomainSignal,
     y: TimeDomainSignal,
-    G_bla: ComplexArray,  # noqa: N803
+    G_bla: ComplexArray,
     Z_noise_cov: ComplexArray | None,
     excited_bins: ExcitedBins,
     *,
@@ -310,112 +350,95 @@ def _compute_spectra_indirect(  # noqa: PLR0913, PLR0917
     U, U_excited = compute_frequency_domain_signal(u, excited_bins)
     Y, Y_excited = compute_frequency_domain_signal(y, excited_bins)
 
-    U_noise_cov, Y_noise_cov = compute_noise_covariance(U), compute_noise_covariance(Y)
+    Y_residual_noise_cov = compute_output_residual_noise_covariance_noisy_input(
+        Z_noise_cov,
+        G_bla,
+        nu,
+    )
     H_bla = _compute_reference_to_input_frequency_response(R_excited, U_excited)
 
-    U_total_cov_per_experiment = _compute_residual_total_covariance(
-        R_excited,
-        U_excited,
-        H_bla,
+    # Input spectrum
+    U_noise_cov = compute_noise_covariance(U)
+    U_nonlinear_cov = None
+    U_total_cov = compute_output_total_covariance(
+        U_excited=R_excited,
+        Y_excited=U_excited,
+        G_bla=H_bla,
         independent_subexperiments=independent_subexperiments,
     )
-    U_nonlinear_cov: ComplexArray | None = None
-    U_total_cov: ComplexArray | None = None
-    if U_total_cov_per_experiment is not None and U_noise_cov is not None:
+    if (
+        U_total_cov is not None
+        and U_noise_cov is not None  # n_periods > 1:
+    ):
         U_nonlinear_cov = project_onto_positive_semidefinite(
-            U_total_cov_per_experiment - U_noise_cov[excited_bins] / n_periods,
+            U_total_cov - U_noise_cov[excited_bins] / n_periods,
         )
         U_total_cov = U_nonlinear_cov + U_noise_cov[excited_bins]
 
-    Y_total_cov_equation_error = _compute_residual_total_covariance(
+    input_spectrum = create_input_spectrum(
+        U,
+        U_noise_cov,
+        U_nonlinear_cov,
+        U_total_cov,
+        n_samples=u.shape[0],
+        excited_bins=excited_bins,
+    )
+
+    # Output spectrum
+    Y_noise_cov = compute_noise_covariance(Y)
+    Y_nonlinear_cov = None
+    Y_total_cov = None
+    Y_total_equation_error_cov = compute_output_total_covariance(
         U_excited,
         Y_excited,
         G_bla,
         independent_subexperiments=independent_subexperiments,
     )
-    Y_noise_cov_residual = compute_output_residual_noise_covariance_noisy_input(
-        Z_noise_cov,
-        G_bla,
-        nu,
-    )
-
-    Y_nonlinear_cov = None
-    Y_total_cov = None
     if (
-        Y_total_cov_equation_error is not None
-        and Y_noise_cov_residual is not None
+        Y_total_equation_error_cov is not None
+        # n_periods > 1
+        and Y_residual_noise_cov is not None
         and Y_noise_cov is not None
     ):
         Y_nonlinear_cov = project_onto_positive_semidefinite(
-            Y_total_cov_equation_error - Y_noise_cov_residual / n_periods,
+            Y_total_equation_error_cov - Y_residual_noise_cov / n_periods,
         )
         Y_total_cov = Y_nonlinear_cov + Y_noise_cov[excited_bins]
+        Y_total_equation_error_cov = Y_nonlinear_cov + Y_residual_noise_cov
 
-    reference_spectrum = create_noiseless_input_spectrum(R)
-    input_spectrum = create_input_spectrum(U, U_noise_cov, U_nonlinear_cov, U_total_cov)
     output_spectrum = create_output_spectrum(
         Y,
         Y_noise_cov,
         Y_nonlinear_cov,
         Y_total_cov,
-        Y_total_cov_equation_error,
+        Y_total_equation_error_cov,
+        n_samples=u.shape[0],
+        excited_bins=excited_bins,
     )
-    return Spectra(input_spectrum, output_spectrum, reference_spectrum)
 
+    # Reference spectrum
+    reference_spectrum = create_noiseless_input_spectrum(R)
 
-def _compute_noise_covariance(signal: FrequencyDomainSignal) -> ComplexArray | None:
-    """Compute the period-averaged measurement-noise covariance."""
-    n_periods = signal.shape[-1]
-    if n_periods == 1:
-        return None
-
-    signal = np.moveaxis(signal, 1, -1)
-    return np.mean(compute_sample_covariance(signal), axis=(1, 2))
+    return Spectra(U=input_spectrum, Y=output_spectrum, R=reference_spectrum)
 
 
 def _compute_reference_to_input_frequency_response(
-    R: FrequencyDomainSignal,  # noqa: N803
-    U: FrequencyDomainSignal,  # noqa: N803
+    R: FrequencyDomainSignal,
+    U: FrequencyDomainSignal,
 ) -> ComplexArray:
-    """Estimate the reference-to-input frequency response."""
     R = as_batched_matrices(R)
     U = as_batched_matrices(U)
-    R = np.squeeze(R, axis=2)
-    U = np.mean(U, axis=2)
-    reference_spectrum = np.mean(R @ R.conj().mT, axis=1)
-    input_reference_spectrum = np.mean(U @ R.conj().mT, axis=1)
-    return compute_frequency_response(reference_spectrum, input_reference_spectrum)
 
+    U_mean = np.mean(U, axis=2)  # average over periods
+    R_mean = np.squeeze(R, axis=2)  # remove singleton dimension
 
-def _compute_residual_total_covariance(
-    predictor: FrequencyDomainSignal,
-    response: FrequencyDomainSignal,
-    frequency_response: ComplexArray,
-    *,
-    independent_subexperiments: bool,
-) -> ComplexArray | None:
-    """Estimate covariance of period-averaged residuals."""
-    predictor = as_batched_matrices(predictor)
-    response = as_batched_matrices(response)
-    n_excited_bins, n_experiments, _, ny, nu = response.shape
-    n_realizations = n_experiments * nu if independent_subexperiments else n_experiments
-    if n_realizations == 1:
-        return None
-
-    residual = np.mean(response - frequency_response[:, None, None] @ predictor, axis=2)
-    if independent_subexperiments:
-        residual = residual.transpose(0, 1, 3, 2).reshape(n_excited_bins, n_realizations, ny)
-        return compute_sample_covariance(residual)
-
-    residual = residual.transpose(0, 3, 1, 2)
-    return np.mean(compute_sample_covariance(residual), axis=1)
-
-
+    S_RR = np.mean(R_mean @ R_mean.conj().mT, axis=1)
+    S_UR = np.mean(U_mean @ R_mean.conj().mT, axis=1)
+    return compute_frequency_response(S_RR, S_UR)
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from matplotlib.axes import Axes
 
     from best_linear_approximation._dataloader import load_f16
     from best_linear_approximation.robust._direct_methods import noisy_input

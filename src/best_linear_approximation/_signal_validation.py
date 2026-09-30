@@ -1,9 +1,14 @@
-from collections.abc import Iterable, Mapping, Sequence
+from __future__ import annotations
+
 from enum import StrEnum
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from best_linear_approximation._exceptions import InvalidSignalAxesError, InvalidSignalRanksError
-from best_linear_approximation._typing import ComplexArray, RealArray
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
+
+    from best_linear_approximation._typing import ComplexArray, RealArray
 
 
 class ContractType(StrEnum):
@@ -101,8 +106,6 @@ def _axes_match(
     Arrays may have different numbers of dimensions. Each selected axis is
     applied to every array independently, following NumPy's axis-indexing
     rules; negative axes are therefore relative to each array's own rank.
-
-    An empty ``arrays`` list or ``axes`` tuple produces ``True``.
     """
     selected_axes = axis if isinstance(axis, tuple) else (axis,)
     return all(len({array.shape[axis] for array in arrays}) <= 1 for axis in selected_axes)

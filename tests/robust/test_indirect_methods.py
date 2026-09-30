@@ -2,12 +2,14 @@ import warnings
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 
 from best_linear_approximation._covariance import propagate_covariance
 from best_linear_approximation._exceptions import (
+    NoiseCovarianceUnavailableWarning,
     PossibleExcitationAmplitudeMismatchWarning,
-    PossibleTransientWarning,
+    PossiblePeriodMismatchWarning,
 )
 from best_linear_approximation._linear_algebra import kronecker_product
 from best_linear_approximation._typing import ComplexArray, RealArray
@@ -16,6 +18,7 @@ from best_linear_approximation.robust import closed_loop, known_reference, noisy
 from . import (
     assert_bla_recovery_and_covariances,
     assert_covariance,
+    assert_disturbance_level,
     bla_disturbance_cases,
     bla_recovery_cases,
     bla_recovery_excitation_cases,
@@ -119,7 +122,7 @@ def test_known_reference_reduces_input_measurement_bias(
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", PossibleExcitationAmplitudeMismatchWarning)
-            warnings.simplefilter("ignore", PossibleTransientWarning)
+            warnings.simplefilter("ignore", PossiblePeriodMismatchWarning)
             known_reference_estimate = known_reference(
                 r,
                 u,
@@ -181,6 +184,8 @@ def test_closed_loop_recovers_plant_and_propagated_covariances(
 @bla_recovery_excitation_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
+@pytest.mark.parametrize("n_periods", [1, 8])
+@pytest.mark.filterwarnings(f"ignore::{NoiseCovarianceUnavailableWarning.__module__}.{NoiseCovarianceUnavailableWarning.__name__}")
 def test_closed_loop_recovers_spectrum_uncertainties(
     ny: int,
     nu: int,
@@ -188,9 +193,18 @@ def test_closed_loop_recovers_spectrum_uncertainties(
     nonlinear_std: float,
     noise_std: float,
     orthogonal: bool,
+    n_periods: int,
 ) -> None:
     """Verify closed-loop recovery of reference, input, and output spectra."""
-    test_data = _generate_closed_loop_test_data(ny, nu, seed, nonlinear_std, noise_std, orthogonal)
+    test_data = _generate_closed_loop_test_data(
+        ny,
+        nu,
+        seed,
+        nonlinear_std,
+        noise_std,
+        orthogonal,
+        n_periods=n_periods,
+    )
     bla = closed_loop(
         test_data.r,
         test_data.u,
@@ -207,16 +221,74 @@ def test_closed_loop_recovers_spectrum_uncertainties(
 
     U_spectrum = bla.spectra.U
     Y_spectrum = bla.spectra.Y
+    assert U_spectrum.total.cov is not None
+    assert Y_spectrum.total_equation_error.cov is not None
+    n_samples = test_data.r.shape[0]
+    assert_disturbance_level(
+        U_spectrum.total,
+        U_spectrum.value,
+        test_data.U_nonlinear_cov + test_data.U_noise_cov,
+        test_data.excited_bins,
+        n_samples,
+    )
+
+    if n_periods == 1:
+        assert U_spectrum.noise.cov is None
+        assert U_spectrum.nonlinear.cov is None
+        assert Y_spectrum.noise.cov is None
+        assert Y_spectrum.nonlinear.cov is None
+        assert Y_spectrum.total.cov is None
+        return
+
     assert U_spectrum.noise.cov is not None
     assert U_spectrum.nonlinear.cov is not None
-    assert U_spectrum.total.cov is not None
     assert Y_spectrum.noise.cov is not None
     assert Y_spectrum.nonlinear.cov is not None
     assert Y_spectrum.total.cov is not None
-    assert Y_spectrum.total_equation_error.cov is not None
+    all_bins = np.arange(U_spectrum.value.shape[0])
+    full_U_noise_cov = np.zeros((all_bins.size, nu, nu), dtype=complex)
+    full_Y_noise_cov = np.zeros((all_bins.size, ny, ny), dtype=complex)
+    full_U_noise_cov[test_data.excited_bins] = test_data.U_noise_cov
+    full_Y_noise_cov[test_data.excited_bins] = test_data.Y_noise_cov
+    assert_disturbance_level(
+        U_spectrum.noise,
+        U_spectrum.value,
+        full_U_noise_cov,
+        all_bins,
+        n_samples,
+    )
+    assert_disturbance_level(
+        Y_spectrum.noise,
+        Y_spectrum.value,
+        full_Y_noise_cov,
+        all_bins,
+        n_samples,
+    )
+    assert_disturbance_level(
+        Y_spectrum.total,
+        Y_spectrum.value,
+        test_data.Y_nonlinear_cov + test_data.Y_noise_cov,
+        test_data.excited_bins,
+        n_samples,
+    )
+    if nonlinear_std > 0:
+        assert_disturbance_level(
+            U_spectrum.nonlinear,
+            U_spectrum.value,
+            test_data.U_nonlinear_cov,
+            test_data.excited_bins,
+            n_samples,
+        )
+        assert_disturbance_level(
+            Y_spectrum.nonlinear,
+            Y_spectrum.value,
+            test_data.Y_nonlinear_cov,
+            test_data.excited_bins,
+            n_samples,
+        )
 
-    n_total_covariance_dof = test_data.n_experiments - 1
     n_noise_covariance_dof = test_data.n_experiments * nu * (test_data.n_periods - 1)
+    n_total_covariance_dof = test_data.n_experiments - 1
 
     assert_covariance(
         U_spectrum.noise.cov[test_data.excited_bins],
@@ -342,10 +414,12 @@ def _generate_closed_loop_test_data(
     nonlinear_std: float,
     noise_std: float,
     orthogonal: bool,
+    *,
+    n_periods: int = 8,
 ) -> _ClosedLoopTestData:
     """Generate a closed-loop data set and its spectral covariance oracles."""
     rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed, orthogonal)
+    setup = generate_test_setup(ny, nu, seed, orthogonal, n_periods=n_periods)
     multisine = setup.multisine
     n_experiments = setup.n_experiments
     n_periods = setup.n_periods

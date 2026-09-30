@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Exceptions
 
 
@@ -28,8 +30,8 @@ class PossibleExcitationAmplitudeMismatchWarning(UserWarning):
     """Warn that excitation amplitude may change between adjacent realizations."""
 
 
-class PossibleTransientWarning(UserWarning):
-    """Warn that the output data may not have reached steady state."""
+class PossiblePeriodMismatchWarning(UserWarning):
+    """Warn that adjacent output periods differ substantially."""
 
 
 class RealizationsTruncatedWarning(UserWarning):

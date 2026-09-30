@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from best_linear_approximation._typing import ComplexArray
+if TYPE_CHECKING:
+    from best_linear_approximation._typing import ComplexArray
 
 
 def compute_sample_covariance(array: ComplexArray) -> ComplexArray:

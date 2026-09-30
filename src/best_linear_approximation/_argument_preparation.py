@@ -1,15 +1,15 @@
+from __future__ import annotations
+
 import warnings
-from collections.abc import Mapping
-from typing import overload
+from typing import TYPE_CHECKING, cast, overload
 
 import numpy as np
-from numpy.typing import NDArray
 
 from best_linear_approximation._array_shapes import add_period_axis, to_experiment_layout
 from best_linear_approximation._exceptions import (
     NoiseCovarianceUnavailableWarning,
     PossibleExcitationAmplitudeMismatchWarning,
-    PossibleTransientWarning,
+    PossiblePeriodMismatchWarning,
     TotalCovarianceUnavailableWarning,
 )
 from best_linear_approximation._misc import rms, standardize_channels
@@ -22,12 +22,18 @@ from best_linear_approximation._spectral_validation import (
     resolve_excited_bins,
     validate_sampling_frequency,
 )
-from best_linear_approximation._typing import (
-    ExcitedBins,
-    RealArray,
-    SamplingFrequencyHz,
-    TimeDomainSignal,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from numpy.typing import NDArray
+
+    from best_linear_approximation._typing import (
+        ExcitedBins,
+        RealArray,
+        SamplingFrequencyHz,
+        TimeDomainSignal,
+    )
 
 # Tuned to pass all tests in "tests/test_argument_preparation.py"
 MINIMUM_RELATIVE_PERIOD_MISMATCH = 0.025  # keep in sync with docstring
@@ -87,8 +93,8 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     Ensures the signals conform to a supported contract and transforms them into the
     canonical five-dimensional experiment layout, verifies the sampling frequency,
     and resolves the excited bins. Warns when the data is insufficient to estimate the
-    noise or total covariance, and when the data contains possible non-steady-state
-    behavior or excitation-amplitude changes between realizations.
+    noise or total covariance, and when adjacent output periods differ substantially
+    or excitation amplitudes change between realizations.
 
     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
     interpreted as a threshold for detecting the excited bins, using ``r`` if available
@@ -105,9 +111,9 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
         r = add_period_axis(r) if r is not None else None
         u = add_period_axis(u)
 
-    r = TimeDomainSignal(r) if r is not None else None
-    u = TimeDomainSignal(u)
-    y = TimeDomainSignal(y)
+    r = cast("TimeDomainSignal", r) if r is not None else None
+    u = cast("TimeDomainSignal", u)
+    y = cast("TimeDomainSignal", y)
 
     fs = validate_sampling_frequency(fs)
     excited_bins = resolve_excited_bins(excited_bins, r if r is not None else u, fs)
@@ -181,10 +187,11 @@ def _warn_if_output_spectra_mismatch(y: RealArray, max_bin: int) -> None:
         msg = (
             f"The relative spectral mismatch between {scope} adjacent {period_pair_label} "
             f"exceeds the threshold of {MINIMUM_RELATIVE_PERIOD_MISMATCH:.2%}. This may "
-            f"indicate non-steady-state behavior. Aggregated relative {difference_label}: "
+            f"indicate transients, drift, changing excitation, or period-alignment "
+            f"issues. Aggregated relative {difference_label}: "
             f"[{values}]."
         )
-        warnings.warn(msg, PossibleTransientWarning, stacklevel=2)
+        warnings.warn(msg, PossiblePeriodMismatchWarning, stacklevel=2)
 
 
 def _warn_if_excitation_amplitude_mismatch(

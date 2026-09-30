@@ -1,19 +1,25 @@
 """Shared fixtures and assertions for robust-method tests."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pytest
 from multisine import (
-    RandomPhaseMultisine,
     random_phase_multisine,
     random_phase_orthogonal_multisine,
 )
-from numpy.typing import NDArray
 
-from best_linear_approximation import NonparametricBLA
 from best_linear_approximation._array_shapes import as_batched_matrices, to_experiment_layout
-from best_linear_approximation._typing import ComplexArray, RealArray
+
+if TYPE_CHECKING:
+    from multisine import RandomPhaseMultisine
+    from numpy.typing import NDArray
+
+    from best_linear_approximation import NonparametricBLA, Uncertainty
+    from best_linear_approximation._typing import ComplexArray, FrequencyDomainSignal, RealArray
 
 bla_recovery_cases = pytest.mark.parametrize(
     ("ny", "nu"),
@@ -145,7 +151,11 @@ def generate_test_setup(
         )
         u_candidates = to_experiment_layout(multisine.u, nu)[..., 0]
         excited_bins = multisine.freq.excited_bins
-        U_candidates = as_batched_matrices(np.fft.rfft(u_candidates, axis=0)[excited_bins])
+        U_candidates = cast(
+            "FrequencyDomainSignal",
+            np.fft.rfft(u_candidates, axis=0)[excited_bins],
+        )
+        U_candidates = as_batched_matrices(U_candidates)
         condition_numbers = np.linalg.cond(U_candidates)
         well_conditioned = np.all(condition_numbers <= max_condition_number, axis=0)
         experiment_indices = np.flatnonzero(well_conditioned)[:n_experiments]
@@ -157,7 +167,8 @@ def generate_test_setup(
     G_rng = np.random.default_rng(seed)
     G_shape = (n_excited_bins, ny, nu)
     G_true = G_rng.normal(scale=0.5, size=G_shape) + 1j * G_rng.normal(scale=0.5, size=G_shape)
-    U = as_batched_matrices(np.fft.rfft(u, axis=0)[excited_bins])
+    U = cast("FrequencyDomainSignal", np.fft.rfft(u, axis=0)[excited_bins])
+    U = as_batched_matrices(U)
     return TestSetup(multisine, U, G_true, n_experiments, n_periods, n_samples)
 
 
@@ -207,3 +218,35 @@ def assert_covariance(
     entry_scales = np.sqrt(variances[:, :, None] * variances[:, None, :])
     tolerance = 6 * entry_scales / np.sqrt(n_degrees_of_freedom) + 1e-24
     np.testing.assert_array_less(np.abs(estimated - expected), tolerance)
+
+
+def assert_disturbance_level(
+    uncertainty: Uncertainty,
+    spectrum: ComplexArray,
+    covariance: ComplexArray,
+    frequency_bins: NDArray[np.int_],
+    n_samples: int,
+) -> None:
+    """Check a relative RMS disturbance level against its covariance oracle."""
+    estimated = uncertainty.as_percentage
+    assert estimated is not None
+    weights = np.full(frequency_bins.size, 2.0)
+    dc_indices = np.flatnonzero(frequency_bins == 0)
+    weights[dc_indices] = 1.0
+    if n_samples % 2 == 0:
+        nyquist_bin = n_samples // 2
+        nyquist_indices = np.flatnonzero(frequency_bins == nyquist_bin)
+        weights[nyquist_indices] = 1.0
+
+    signal_power = np.einsum("f,f...->...", weights, np.abs(spectrum[frequency_bins]) ** 2)
+    signal_power = np.mean(signal_power, axis=tuple(range(1, signal_power.ndim)))
+    variance = np.diagonal(covariance, axis1=-2, axis2=-1).real
+    disturbance_power = np.einsum("f,f...->...", weights, variance)
+    expected = 100 * np.sqrt(disturbance_power / signal_power)
+    np.testing.assert_allclose(estimated, expected, rtol=0.15, atol=1e-12)
+
+    with np.errstate(divide="ignore"):
+        power_ratio_db = uncertainty.as_power_ratio_db
+        expected_power_ratio_db = -20 * np.log10(estimated / 100)
+    assert power_ratio_db is not None
+    np.testing.assert_allclose(power_ratio_db, expected_power_ratio_db)

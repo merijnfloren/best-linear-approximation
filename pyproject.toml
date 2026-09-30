@@ -12,7 +12,7 @@ dev = [
   "pytest>=9.1.1",
   "ruff>=0.16.3",
   "scipy>=1.17.0",
-  "toml-sort>=0.25.0",
+  "toml-sort>=0.25.0"
 ]
 
 [project]
@@ -31,8 +31,8 @@ dependencies = [
 
 [project.optional-dependencies]
 benchmarks = [
-    "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
-    "scipy>=1.17.0",
+  "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
+  "scipy>=1.17.0"
 ]
 
 [tool.ruff]
@@ -44,10 +44,15 @@ ignore = [
   "CPY001", # missing-copyright-notice
   "D203", # incorrect-blank-line-before-class
   "D213", # multi-line-summary-second-line
+  "N803", # invalid-argument-name
   "N806" # non-lowercase-variable-in-function
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"src/best_linear_approximation/_dataloader.py" = [
+  "ANN401", # untyped optional dependency
+  "PLC0415" # lazy optional-dependency imports
+]
 "tests/**/*.py" = [
   "D100", # undocumented-public-module
   "D103", # undocumented-public-function

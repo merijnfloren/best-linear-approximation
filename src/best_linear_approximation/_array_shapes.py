@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import warnings
-from typing import overload
+from typing import TYPE_CHECKING, cast, overload
 
 import numpy as np
 
@@ -7,11 +9,13 @@ from best_linear_approximation._exceptions import (
     InsufficientExperimentsError,
     RealizationsTruncatedWarning,
 )
-from best_linear_approximation._typing import (
-    FrequencyDomainSignal,
-    RealArray,
-    TimeDomainSignal,
-)
+
+if TYPE_CHECKING:
+    from best_linear_approximation._typing import (
+        FrequencyDomainSignal,
+        RealArray,
+        TimeDomainSignal,
+    )
 
 CANONICAL_SIGNAL_NDIM = 5
 MINIMUM_SIGNAL_NDIM = 3
@@ -53,7 +57,8 @@ def to_experiment_layout(
     signal = signal[:, :, :n_effective_realizations, ...]
     signal = signal.reshape(*signal.shape[:2], nu, n_experiments, *signal.shape[3:], order="F")
 
-    return TimeDomainSignal(
+    return cast(
+        "TimeDomainSignal",
         signal
         if signal.ndim == CANONICAL_SIGNAL_NDIM
         else add_period_axis(signal),

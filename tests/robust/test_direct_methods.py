@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
 
 from best_linear_approximation._covariance import propagate_covariance
+from best_linear_approximation._exceptions import NoiseCovarianceUnavailableWarning
 from best_linear_approximation._linear_algebra import kronecker_product
 from best_linear_approximation._typing import ComplexArray
 from best_linear_approximation.robust import known_input, noisy_input
@@ -8,6 +10,7 @@ from best_linear_approximation.robust import known_input, noisy_input
 from . import (
     assert_bla_recovery_and_covariances,
     assert_covariance,
+    assert_disturbance_level,
     bla_disturbance_cases,
     bla_recovery_excitation_cases,
     bla_recovery_seeds,
@@ -121,6 +124,8 @@ def test_known_input_recovers_plant_and_propagated_covariances(
 @bla_recovery_excitation_cases
 @bla_recovery_seeds
 @bla_disturbance_cases
+@pytest.mark.parametrize("n_periods", [1, 8])
+@pytest.mark.filterwarnings(f"ignore::{NoiseCovarianceUnavailableWarning.__module__}.{NoiseCovarianceUnavailableWarning.__name__}")
 def test_known_input_recovers_output_spectrum_uncertainties(
     ny: int,
     nu: int,
@@ -128,10 +133,11 @@ def test_known_input_recovers_output_spectrum_uncertainties(
     nonlinear_std: float,
     noise_std: float,
     orthogonal: bool,
+    n_periods: int,
 ) -> None:
     """Verify known-input estimation recovers output spectrum uncertainties."""
     rng = np.random.default_rng(seed)
-    setup = generate_test_setup(ny, nu, seed, orthogonal)
+    setup = generate_test_setup(ny, nu, seed, orthogonal, n_periods=n_periods)
     multisine = setup.multisine
     n_experiments = setup.n_experiments
     n_periods = setup.n_periods
@@ -158,16 +164,57 @@ def test_known_input_recovers_output_spectrum_uncertainties(
 
     Y_spectrum = bla.spectra.Y
     assert Y_spectrum.total.cov is not None
+    all_bins = np.arange(Y_spectrum.value.shape[0])
+    full_noise_cov = np.zeros((all_bins.size, ny, ny), dtype=complex)
+    full_noise_cov[multisine.freq.excited_bins] = Y_noise_cov
+    total_cov = Y_nonlinear_cov + Y_noise_cov
+    assert_disturbance_level(
+        Y_spectrum.total,
+        Y_spectrum.value,
+        total_cov,
+        multisine.freq.excited_bins,
+        n_samples,
+    )
+    assert_disturbance_level(
+        Y_spectrum.total_equation_error,
+        Y_spectrum.value,
+        total_cov,
+        multisine.freq.excited_bins,
+        n_samples,
+    )
+
+    if n_periods == 1:
+        assert Y_spectrum.nonlinear.cov is None
+        assert Y_spectrum.noise.cov is None
+        return
+
     assert Y_spectrum.nonlinear.cov is not None
     assert Y_spectrum.noise.cov is not None
-
-    n_total_covariance_dof = n_experiments - 1
-    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
-    assert_covariance(
-        Y_spectrum.total.cov,
-        Y_nonlinear_cov + Y_noise_cov,
-        n_total_covariance_dof,
+    assert_disturbance_level(
+        Y_spectrum.noise,
+        Y_spectrum.value,
+        full_noise_cov,
+        all_bins,
+        n_samples,
     )
+    if nonlinear_std > 0:
+        assert_disturbance_level(
+            Y_spectrum.nonlinear,
+            Y_spectrum.value,
+            Y_nonlinear_cov,
+            multisine.freq.excited_bins,
+            n_samples,
+        )
+
+    n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
+    n_total_covariance_dof = n_experiments - 1
+
+    assert_covariance(
+        Y_spectrum.noise.cov[multisine.freq.excited_bins],
+        Y_noise_cov,
+        n_noise_covariance_dof,
+    )
+
     if nonlinear_std > 0:
         assert_covariance(
             Y_spectrum.nonlinear.cov,
@@ -177,10 +224,11 @@ def test_known_input_recovers_output_spectrum_uncertainties(
     else:
         nonlinear_eigenvalues = np.linalg.eigvalsh(Y_spectrum.nonlinear.cov)
         np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
+
     assert_covariance(
-        Y_spectrum.noise.cov[multisine.freq.excited_bins],
-        Y_noise_cov,
-        n_noise_covariance_dof,
+        Y_spectrum.total.cov,
+        Y_nonlinear_cov + Y_noise_cov,
+        n_total_covariance_dof,
     )
 
 
@@ -301,12 +349,19 @@ def test_noisy_input_recovers_spectrum_uncertainties(
     Y_nonlinear_cov = Z_nonlinear_cov[:, :ny, :ny]
     Y_noise_cov = Z_noise_cov[:, :ny, :ny]
     U_noise_cov = Z_noise_cov[:, ny:, ny:]
+
     n_total_covariance_dof = n_experiments - 1
     n_noise_covariance_dof = n_experiments * nu * (n_periods - 1)
+
     assert_covariance(
-        Y_spectrum.total.cov,
-        Y_nonlinear_cov + Y_noise_cov,
-        n_total_covariance_dof,
+        Y_spectrum.noise.cov[multisine.freq.excited_bins],
+        Y_noise_cov,
+        n_noise_covariance_dof,
+    )
+    assert_covariance(
+        U_spectrum.noise.cov[multisine.freq.excited_bins],
+        U_noise_cov,
+        n_noise_covariance_dof,
     )
     if nonlinear_std > 0:
         assert_covariance(
@@ -319,14 +374,9 @@ def test_noisy_input_recovers_spectrum_uncertainties(
         np.testing.assert_array_less(-1e-20, nonlinear_eigenvalues)
 
     assert_covariance(
-        Y_spectrum.noise.cov[multisine.freq.excited_bins],
-        Y_noise_cov,
-        n_noise_covariance_dof,
-    )
-    assert_covariance(
-        U_spectrum.noise.cov[multisine.freq.excited_bins],
-        U_noise_cov,
-        n_noise_covariance_dof,
+        Y_spectrum.total.cov,
+        Y_nonlinear_cov + Y_noise_cov,
+        n_total_covariance_dof,
     )
 
 
