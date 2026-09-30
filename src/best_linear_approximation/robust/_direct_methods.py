@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -32,8 +32,6 @@ from best_linear_approximation._signal_validation import (
     SignalRanks,
 )
 from best_linear_approximation._spectra import (
-    InputSpectrum,
-    OutputSpectrum,
     Spectra,
     compute_frequency_domain_signal,
     compute_noise_covariance,

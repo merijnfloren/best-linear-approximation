@@ -32,8 +32,6 @@ from best_linear_approximation._signal_validation import (
     SignalRanks,
 )
 from best_linear_approximation._spectra import (
-    InputSpectrum,
-    OutputSpectrum,
     Spectra,
     compute_frequency_domain_signal,
     compute_noise_covariance,
@@ -47,7 +45,6 @@ from best_linear_approximation._spectra import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from matplotlib.axes import Axes
     from numpy.typing import NDArray
 
     from best_linear_approximation._typing import (
