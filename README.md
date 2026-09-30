@@ -6,7 +6,7 @@ The implemented definitions follow *[System Identification: A Frequency Domain A
 
 ## Basic usage
 
-The four robust BLA methods correspond to different experimental conditions.
+The four available BLA estimation methods correspond to different experimental conditions.
 They estimate the equivalent nonlinear system from input $u$ to output $y$ under periodic multisine excitation.
 The diagrams below show the input-output signals and measurement-noise sources $v_u$ and $v_y$; see each method's docstring for its required arguments.
 
@@ -25,7 +25,7 @@ Including this behavior is often desirable for control applications.
 ### Noisy input
 
 To identify only the system dynamics, use a measurement of the signal entering the system as $u$.
-Since $u$ is then a noise-corrupted measurement of the true system input, the BLA estimate can be biased.
+Since $u$ is then a noise-corrupted measurement of the true system input, the BLA estimate will be biased.
 The bias may be acceptable when the input measurements are sufficiently clean, possibly after averaging over repeated periods.
 
 <p align="center">
