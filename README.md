@@ -17,7 +17,7 @@ The BLA then captures the apparent dynamics between $u$ and $y$, including delay
 This is useful in control applications, where including actuator dynamics in the model is often desirable.
 
 <p align="center">
-  <img src="docs/known_input.drawio.svg" alt="Known-input measurement setup">
+  <img src="docs/known_input.drawio.svg" alt="Known-input measurement setup" width="514">
 </p>
 
 **Function:** `best_linear_approximation.robust.known_input(...)`
@@ -28,7 +28,7 @@ When the aim is to identify the nonlinear system itself, measure the signal that
 This introduces input measurement noise, which can adversely affect the estimate.
 
 <p align="center">
-  <img src="docs/noisy_input.drawio.svg" alt="Noisy-input measurement setup">
+  <img src="docs/noisy_input.drawio.svg" alt="Noisy-input measurement setup" width="569">
 </p>
 
 **Function:** `best_linear_approximation.robust.noisy_input(...)`
@@ -39,7 +39,7 @@ This has the same measured-input setup as the noisy-input case, but also uses a 
 Treating $r$ as an instrumental variable reduces the adverse effect of input measurement noise and enables the actuator-induced nonlinear distortion at the plant input to be quantified.
 
 <p align="center">
-  <img src="docs/known_reference.drawio.svg" alt="Known-reference measurement setup">
+  <img src="docs/known_reference.drawio.svg" alt="Known-reference measurement setup" width="572">
 </p>
 
 **Function:** `best_linear_approximation.robust.known_reference(...)`
@@ -55,7 +55,7 @@ Note that an actuator is not shown in the below diagram.
 It can be placed between $r_2$ and $u$, excluding its dynamics from the BLA, or between $u$ and the plant, including its dynamics in the BLA, depending on the desired model scope.
 
 <p align="center">
-  <img src="docs/closed_loop.drawio.svg" alt="Closed-loop measurement setup">
+  <img src="docs/closed_loop.drawio.svg" alt="Closed-loop measurement setup" width="701">
 </p>
 
 **Function:** `best_linear_approximation.robust.closed_loop(...)`
@@ -107,10 +107,10 @@ For convenient access to selected multisine benchmark datasets from [nonlinearbe
 
 The following datasets are included:
 
-- F-16 aircraft benchmark — `load_f16()`
-- Fine Steering Mirror — `load_fine_steering_mirror()`
-- Parallel Wiener-Hammerstein — `load_parallel_wiener_hammerstein()`
-- Silverbox — `load_silverbox()`
+- F-16 aircraft benchmark; `load_f16()`
+- Fine Steering Mirror; `load_fine_steering_mirror()`
+- Parallel Wiener-Hammerstein; `load_parallel_wiener_hammerstein()`
+- Silverbox; `load_silverbox()`
 
 ## Example
 
