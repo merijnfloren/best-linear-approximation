@@ -39,8 +39,7 @@ class EstimationMethod(Enum):
 
     ROBUST_DIRECT_KNOWN_INPUT = "robust_direct_known_input"
     ROBUST_DIRECT_NOISY_INPUT = "robust_direct_noisy_input"
-    ROBUST_INDIRECT_CLOSED_LOOP = "robust_indirect_closed_loop"
-    ROBUST_INDIRECT_KNOWN_REFERENCE = "robust_indirect_known_reference"
+    ROBUST_INDIRECT = "robust_indirect"
 
 
 @dataclass(frozen=True)
