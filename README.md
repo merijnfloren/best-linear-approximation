@@ -127,7 +127,7 @@ Alternatively, if the bins are known, they can be passed as the fourth argument 
 
 Additional examples and visualizations of nonlinear benchmark systems are available in [`examples/`](examples/).
 
-## Install
+## Installation
 
 Requires Python 3.12 or later.
 The only runtime dependency is NumPy (2.0 or later).
