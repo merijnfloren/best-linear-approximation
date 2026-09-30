@@ -1,6 +1,6 @@
 # best-linear-approximation
 
-A well-tested Python package for estimating the nonparametric best linear approximation (BLA) and its uncertainty estimates for multivariable nonlinear systems in open- and closed-loop operation.
+A well-tested Python package for estimating the nonparametric best linear approximation (BLA) and its uncertainty estimates for multivariable nonlinear systems in open- and closed-loop settings.
 
 The implemented definitions follow *[System Identification: A Frequency Domain Approach, Second Edition][pintelon-schoukens]* by Rik Pintelon and Johan Schoukens, particularly the robust methods in Section 4.3.1.
 
@@ -13,8 +13,8 @@ The diagrams show the input-output signals and measurement-noise sources $v_u$ a
 ### Known input
 
 Use this method when $u$ is known exactly.
-The BLA then captures the apparent dynamics between $u$ and $y$, including delays, actuator dynamics, and nonlinear behavior.
-This is useful in control applications, where including actuator dynamics in the model is often desirable.
+The BLA then captures all dynamics between $u$ and $y$, including, actuator dynamics, delays, zero-order-hold effects, etc.
+Including these effects is often desirable for control applications.
 
 <p align="center">
   <img src="docs/known_input.drawio.svg" alt="Known-input measurement setup" width="514">
@@ -24,8 +24,9 @@ This is useful in control applications, where including actuator dynamics in the
 
 ### Noisy input
 
-When the aim is to identify the nonlinear system itself, measure the signal that enters it as $u$.
-However, this makes $u$ a noise-corrupted measurement of the true input, which biases the BLA estimate.
+To identify only the system dynamics, use a measurement of the signal entering the system as $u$.
+Since $u$ is then a noise-corrupted measurement of the true system input, the BLA estimate can be biased.
+The bias may be acceptable when the input measurements are sufficiently clean, possibly after averaging over repeated periods.
 
 <p align="center">
   <img src="docs/noisy_input.drawio.svg" alt="Noisy-input measurement setup" width="569">
@@ -35,8 +36,8 @@ However, this makes $u$ a noise-corrupted measurement of the true input, which b
 
 ### Known reference
 
-This has the same measured-input setup as the noisy-input case, but also uses a clean reference $r$.
-Treating $r$ as an instrumental variable reduces the adverse effect of input measurement noise and enables the actuator-induced nonlinear distortion at the plant input to be quantified.
+As in the noisy-input case, use a measurement of the signal entering the system as $u$, but now also use a clean reference $r$.
+Treating $r$ as an instrumental variable reduces the effect of input measurement noise on the BLA estimate and allows actuator-induced nonlinear distortion at the system input to be quantified.
 
 <p align="center">
   <img src="docs/known_reference.drawio.svg" alt="Known-reference measurement setup" width="572">
