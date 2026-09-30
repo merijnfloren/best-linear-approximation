@@ -7,8 +7,6 @@ dev = [
   "matplotlib>=3.11.1",
   "multisine>=0.1.1",
   "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
-  "pandas>=3.0.5",
-  "pyqt5>=5.15.11",
   "pytest>=9.1.1",
   "ruff>=0.16.3",
   "scipy>=1.17.0",
@@ -18,15 +16,14 @@ dev = [
 [project]
 name = "best-linear-approximation"
 version = "0.1.0"
-description = "Add your description here"
+description = "Estimate nonparametric best linear approximations of nonlinear systems"
 readme = "README.md"
 authors = [
   { email = "merijn.floren@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
-  "ipykernel>=7.3.0",
-  "numpy>=2.5.2"
+  "numpy>=2.0"
 ]
 
 [project.optional-dependencies]
