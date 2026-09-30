@@ -78,7 +78,7 @@ NonparametricBLA
 │   │   ├── value
 │   │   └── noise, nonlinear, total, total_equation_error: Uncertainty
 │   └── R: InputSpectrum | None
-|       └── value
+│       └── value
 ├── freq: FrequencyInfo
 └── experiment: ExperimentInfo
 ```
@@ -94,13 +94,16 @@ Uncertainty
 └── as_power_ratio_db: RealArray | None   "value" RMS relative to uncertainty RMS, in dB
 ```
 
-Here, `n_channels` is the product of `marginal_shape`, such as `ny * nu` for a frequency response with shape `(ny, nu)`.
+Here, `marginal_shape` is the shape of the estimated quantity at a single frequency bin, and `n_channels` is the product of its dimensions.
+For example, a frequency response has `marginal_shape = (ny, nu)` and `n_channels = ny * nu`.
 
-Input-output spectra and their noise uncertainties are returned at every frequency bin; all other values and uncertainties are returned only at excited frequency bins.
+Input and output spectra and their noise uncertainties are returned at every frequency bin.
+All other values and uncertainties are returned only at excited frequency bins.
 When an uncertainty cannot be estimated from the available measurements, its properties are `None`.
 
-`as_percentage` and `as_power_ratio_db` reduce the frequency axis, yielding useful component-wise summary statistics.
-For example, for each output channel, `bla_estimate.spectra.Y.noise.as_power_ratio_db` gives the signal-to-noise ratio, while `bla_estimate.spectra.Y.noise.as_percentage` gives an a priori, noise-imposed lower bound on the achievable simulation error of a nonlinear parametric model identified from the data.
+`as_percentage` and `as_power_ratio_db` reduce the frequency axis, yielding useful summary statistics.
+For example, `bla_estimate.spectra.Y.noise.as_power_ratio_db` gives the signal-to-noise ratio for each output channel.
+The corresponding `as_percentage` gives an a priori, noise-imposed lower bound on the achievable simulation error of a nonlinear parametric model under the measured operating condition.
 
 ## Benchmark datasets
 
