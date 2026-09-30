@@ -21,6 +21,8 @@ readme = "README.md"
 authors = [
   { email = "merijn.floren@gmail.com" }
 ]
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
   "numpy>=2.0"
@@ -31,6 +33,10 @@ benchmarks = [
   "nonlinear-benchmarks @ git+https://github.com/MaartenSchoukens/nonlinear_benchmarks.git@f9fb3883086870a27b31917ccde1f78c95d53cb2",
   "scipy>=1.17.0"
 ]
+
+[project.urls]
+Repository = "https://github.com/merijnfloren/best-linear-approximation"
+Issues = "https://github.com/merijnfloren/best-linear-approximation/issues"
 
 [tool.ruff]
 line-length = 100
