@@ -14,7 +14,7 @@ The diagrams below show the input-output signals and measurement-noise sources $
 
 Use this method when $u$ is known exactly.
 The BLA then captures all dynamics between $u$ and $y$, including actuator dynamics, delays, zero-order-hold effects, etc.
-Including these effects is often desirable for control applications.
+Including this behavior is often desirable for control applications.
 
 <p align="center">
   <img src="docs/known_input.drawio.svg" alt="Known-input measurement setup" width="514">
