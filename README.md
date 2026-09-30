@@ -8,12 +8,12 @@ The implemented definitions follow *[System Identification: A Frequency Domain A
 
 The four robust BLA methods correspond to different experimental conditions.
 They estimate the equivalent nonlinear system from input $u$ to output $y$ under periodic multisine excitation.
-The diagrams show the input-output signals and measurement-noise sources $v_u$ and $v_y$; see each method's docstring for its required arguments.
+The diagrams below show the input-output signals and measurement-noise sources $v_u$ and $v_y$; see each method's docstring for its required arguments.
 
 ### Known input
 
 Use this method when $u$ is known exactly.
-The BLA then captures all dynamics between $u$ and $y$, including, actuator dynamics, delays, zero-order-hold effects, etc.
+The BLA then captures all dynamics between $u$ and $y$, including actuator dynamics, delays, zero-order-hold effects, etc.
 Including these effects is often desirable for control applications.
 
 <p align="center">
@@ -47,13 +47,13 @@ Treating $r$ as an instrumental variable reduces the effect of input measurement
 
 ### Closed loop
 
-Closed-loop estimation uses the same instrumental-variable principle.
-The reference prevents the biased frequency-response estimate that would generally result from treating closed-loop data with an open-loop method.
-The reference can be the output reference $r_1$, or an additive input reference $r_2$.
-It must have the same number of channels as $u$, which is always guaranteed for $r_2$ but must be verified for $r_1$ in multivariable settings.
+Closed-loop estimation uses the same instrumental-variable principle as the known-reference method.
+Using a clean reference avoids the bias that generally arises when applying an open-loop method to closed-loop data.
+This reference can be the output reference $r_1$ or an additive input reference $r_2$.
+It must have the same number of channels as $u$: this is guaranteed for $r_2$, but must be verified for $r_1$ in multivariable settings.
 
-Note that an actuator is not shown in the below diagram.
-It can be placed between $r_2$ and $u$, excluding its dynamics from the BLA, or between $u$ and the plant, including its dynamics in the BLA, depending on the desired model scope.
+The diagram below does not show an actuator.
+Depending on the desired model scope, it can be placed between $r_2$ and $u$ to exclude its dynamics from the BLA, or between $u$ and the system to include them.
 
 <p align="center">
   <img src="docs/closed_loop.drawio.svg" alt="Closed-loop measurement setup" width="701">
@@ -63,7 +63,7 @@ It can be placed between $r_2$ and $u$, excluding its dynamics from the BLA, or 
 
 ## Result object
 
-The estimation methods return a `NonparametricBLA` object:
+The above estimation methods return a `NonparametricBLA` object:
 
 ```text
 NonparametricBLA
