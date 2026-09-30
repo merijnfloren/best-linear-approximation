@@ -103,11 +103,11 @@ For example, for each output channel, `bla_estimate.spectra.Y.noise.as_power_rat
 
 ## Benchmark datasets
 
-For convenient access to selected multisine benchmark datasets from [nonlinearbenchmark.org](https://www.nonlinearbenchmark.org/), the package provides `best_linear_approximation.dataloader`, which prepares them in the format expected by the BLA estimators.
+For convenient access to selected benchmark datasets from [nonlinearbenchmark.org](https://www.nonlinearbenchmark.org/), the package provides `best_linear_approximation.dataloader`, which loads and prepares multisine data in the format required by the BLA estimators.
 
-The following datasets are included:
+The following benchmarks are included:
 
-- F-16 aircraft benchmark; `load_f16()`
+- F-16 aircraft; `load_f16()`
 - Fine Steering Mirror; `load_fine_steering_mirror()`
 - Parallel Wiener-Hammerstein; `load_parallel_wiener_hammerstein()`
 - Silverbox; `load_silverbox()`
