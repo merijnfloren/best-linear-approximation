@@ -156,27 +156,42 @@ def load_fine_steering_mirror() -> dict[str, DataBLA[None]]:
         - ``train 300mV``
 
     """
-    nlb = _load_benchmark_module()
+    try:
+        from nonlinear_benchmarks.utilities import cashed_download
+    except ImportError as error:
+        _raise_missing_benchmark_dependency(error)
+
+    url = "https://github.com/merijnfloren/fsm-benchmark-data/raw/refs/heads/main/data/combined_data.npz"
+    download_size = 19_532_226
+    save_dir = cashed_download(
+        url,
+        "FineSteeringMirror",
+        dir_placement=None,
+        download_size=download_size,
+        force_download=False,
+        zipped=False,
+    )
+    data_file = Path(save_dir) / "combined_data.npz"
 
     # Quantities taken from the Fine Steering Mirror paper
     f_max = 3000  # [Hz]
-    fs = 6400  # [Hz]
+    fs = cast("SamplingFrequencyHz", 6400)
     n_samples = 8192
-
     excited_bins = np.arange(1, math.ceil(f_max / (fs / n_samples)))
 
-    nlb_data = cast("list[Any]", nlb.FineSteeringMirror()[0])
     bla_data: dict[str, DataBLA[None]] = {}
-    for data in nlb_data:
-        u, y = data.u, data.y
-
-        bla_data[data.name] = DataBLA(
-            r=None,
-            u=u,
-            y=y,
-            fs=cast("SamplingFrequencyHz", fs),
-            excited_bins=cast("ExcitedBins", excited_bins),
-        )
+    with np.load(data_file) as data:
+        for amplitude in ("100mV", "200mV", "300mV"):
+            u = data[f"u_{amplitude}_train"]
+            y = data[f"y_{amplitude}_train"]
+            name = f"train {amplitude}"
+            bla_data[name] = DataBLA(
+                r=None,
+                u=u,
+                y=y,
+                fs=fs,
+                excited_bins=cast("ExcitedBins", excited_bins),
+            )
 
     return bla_data
 
