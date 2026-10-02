@@ -25,6 +25,8 @@ EXPERIMENT_LAYOUT_WITHOUT_PERIOD_NDIM = 4
 def to_experiment_layout(
     signal: RealArray,
     nu: int,
+    *,
+    warn_on_truncation: bool = True,
 ) -> TimeDomainSignal:
     """Convert a signal from realization layout to five-dimensional experiment layout.
 
@@ -33,8 +35,9 @@ def to_experiment_layout(
     axes using column-major ordering. Adds a singleton period axis if none is present.
     The resulting shape is ``(n_samples, n_channels, nu, n_experiments, n_periods)``.
 
-    Raises an ``InsufficientExperimentsError`` if ``n_realizations < nu``. Warns if
-    ``n_realizations`` is not divisible by ``nu`` and discards the remaining realizations.
+    Raises an ``InsufficientExperimentsError`` if ``n_realizations < nu``. If
+    ``warn_on_truncation`` is true, warns when ``n_realizations`` is not divisible by
+    ``nu`` and the remaining realizations are discarded.
     """
     n_realizations = signal.shape[2]
     n_experiments = n_realizations // nu
@@ -46,7 +49,7 @@ def to_experiment_layout(
         raise InsufficientExperimentsError(msg)
 
     n_effective_realizations = n_experiments * nu
-    if n_effective_realizations < n_realizations:
+    if warn_on_truncation and n_effective_realizations < n_realizations:
         msg = (
             f"The number of realizations ({n_realizations}) is not a multiple of "
             f"the number of input channels ({nu}). Only the first "

@@ -104,8 +104,8 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
 
     nu = u.shape[1]
     if contract_type is ContractType.REALIZATION:
-        r = to_experiment_layout(r, nu) if r is not None else None
-        u = to_experiment_layout(u, nu)
+        r = to_experiment_layout(r, nu, warn_on_truncation=False) if r is not None else None
+        u = to_experiment_layout(u, nu, warn_on_truncation=False)
         y = to_experiment_layout(y, nu)
     else:
         r = add_period_axis(r) if r is not None else None
