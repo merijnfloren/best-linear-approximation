@@ -49,58 +49,6 @@ def right_solve(left: NDArray[Any], right: NDArray[Any]) -> NDArray[Any]:
     return np.linalg.solve(right.mT, left.mT).mT
 
 
-def solve_left_kronecker_product(
-    left: NDArray[Any],
-    right: NDArray[Any],
-) -> NDArray[Any]:
-    """Solve a Kronecker-product equation for its right factor.
-
-    Computes ``solution`` such that ``kron(left, solution) == right``.
-    Leading  axes are broadcast according to NumPy's rules. Square ``left``
-    has shape ``(..., n_left, n_left)`` and square ``right`` has shape
-    ``(..., n_left * n_channels, n_left * n_channels)``. The returned
-    matrix has shape ``(..., n_channels, n_channels)``.
-    """
-    n_channels_left, n_cols_left = left.shape[-2:]
-    n_channels_right, n_cols_right = right.shape[-2:]
-
-    if n_channels_left != n_cols_left:
-        msg = "The final two axes of left must be square."
-        raise ValueError(msg)
-
-    if n_channels_right != n_cols_right:
-        msg = "The final two axes of right must be square."
-        raise ValueError(msg)
-
-    n_channels, remainder = divmod(n_channels_right, n_channels_left)
-    if remainder:
-        msg = (
-            "The dimensions of right must be divisible by the dimensions of left, "
-            f"got {right.shape[-2:]} and {left.shape[-2:]}."
-        )
-        raise ValueError(msg)
-
-    batch_shape = np.broadcast_shapes(left.shape[:-2], right.shape[:-2])
-    left = np.broadcast_to(left, (*batch_shape, n_channels_left, n_cols_left))
-    right = np.broadcast_to(right, (*batch_shape, n_channels_right, n_cols_right))
-
-    right_blocks = right.reshape(
-        *batch_shape,
-        n_channels_left,
-        n_channels * n_channels_left * n_channels,
-    )
-    solution_blocks = np.linalg.solve(left, right_blocks)
-    solution_blocks = solution_blocks.reshape(
-        *batch_shape,
-        n_channels_left,
-        n_channels,
-        n_channels_left,
-        n_channels,
-    )
-
-    return np.trace(solution_blocks, axis1=-4, axis2=-2) / n_channels_left
-
-
 def vec(array: NDArray[Any]) -> NDArray[Any]:
     """Vectorize the final two matrix axes of an array.
 
