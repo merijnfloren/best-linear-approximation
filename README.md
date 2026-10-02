@@ -107,7 +107,7 @@ The corresponding `as_percentage` gives an a priori, noise-imposed lower bound o
 
 ## Benchmark datasets
 
-For convenient access to selected benchmark datasets from [nonlinearbenchmark.org](https://www.nonlinearbenchmark.org/), the package provides `best_linear_approximation.dataloader`, which loads and prepares multisine data in the format required by the BLA estimators.
+For convenient access to selected benchmark datasets from [nonlinearbenchmark.org](https://www.nonlinearbenchmark.org/), the package provides `best_linear_approximation.dataloader`, which loads and prepares multisine training data in the format required by the BLA estimators.
 
 The following benchmarks are included:
 
