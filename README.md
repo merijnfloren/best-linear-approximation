@@ -90,8 +90,8 @@ Uncertainty
 ├── cov: ComplexArray | None              (n_bins, n_channels, n_channels), joint covariance
 ├── var: RealArray | None                 (n_bins, *marginal_shape), marginal variance
 ├── std: RealArray | None                 (n_bins, *marginal_shape), marginal standard deviation
-├── as_percentage: RealArray | None       uncertainty RMS relative to "value" RMS, in %
-└── as_power_ratio_db: RealArray | None   "value" RMS relative to uncertainty RMS, in dB
+├── as_percentage: RealArray | None       uncertainty std relative to "value" std, in %
+└── as_power_ratio_db: RealArray | None   "value" std relative to uncertainty std, in dB
 ```
 
 Here, `marginal_shape` is the shape of the estimated quantity at a single frequency bin, and `n_channels` is the product of its dimensions.

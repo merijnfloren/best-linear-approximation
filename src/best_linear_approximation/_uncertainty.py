@@ -29,13 +29,13 @@ class Uncertainty:
     std : RealArray or None
         Component-wise standard deviation, equal to ``sqrt(var)``.
     as_percentage : RealArray or None
-        RMS uncertainty relative to the estimate's RMS value, expressed as a
-        percentage. The frequency axis is reduced, giving one value per
-        component with shape ``var.shape[1:]``.
+        Uncertainty standard deviation relative to the estimate's standard
+        deviation, expressed as a percentage. The frequency axis is reduced,
+        giving one value per component with shape ``var.shape[1:]``.
     as_power_ratio_db : RealArray or None
-        Estimate's RMS value relative to its RMS uncertainty, expressed in dB.
-        The frequency axis is reduced, giving one value per component with
-        shape ``var.shape[1:]``.
+        Estimate's standard deviation relative to its uncertainty standard
+        deviation, expressed in dB. The frequency axis is reduced, giving one
+        value per component with shape ``var.shape[1:]``.
 
     """
 
@@ -89,7 +89,7 @@ class Uncertainty:
 
     @property
     def as_percentage(self) -> RealArray | None:
-        """RMS uncertainty relative to the estimate's RMS value in percent."""
+        """Uncertainty standard deviation relative to the estimate's standard deviation."""
         disturbance_power = self._disturbance_power
         if self._signal_power is None or disturbance_power is None:
             return None
@@ -97,7 +97,7 @@ class Uncertainty:
 
     @property
     def as_power_ratio_db(self) -> RealArray | None:
-        """Ratio in dB of the estimate's RMS value to its RMS uncertainty."""
+        """Ratio in dB of the estimate's standard deviation to its uncertainty."""
         disturbance_power = self._disturbance_power
         if self._signal_power is None or disturbance_power is None:
             return None
@@ -115,10 +115,10 @@ def _compute_frequency_weights(
     n_samples: int,
     frequency_bins: NDArray[np.int_],
 ) -> RealArray:
-    """Return Parseval weights for selected bins of a real ``rfft`` spectrum."""
+    """Return non-DC Parseval weights for selected bins of a real ``rfft`` spectrum."""
     weights = np.full(frequency_bins.size, 2.0)
     dc_indices = np.flatnonzero(frequency_bins == 0)
-    weights[dc_indices] = 1.0
+    weights[dc_indices] = 0.0
 
     if n_samples % 2 == 0:
         nyquist_bin = n_samples // 2

@@ -73,7 +73,7 @@ class OutputSpectrum:
         estimated at every excited frequency bin. Requires ``n_periods > 1``
         and an estimable ``total`` uncertainty.
     total : Uncertainty
-        Total uncertainty, with covariance ``Cov(Y_noise) + Cov(Y_nonlinear)``
+        Total uncertainty, with covariance ``Cov(Y_nonlinear) + Cov(Y_noise)``
         estimated at every excited frequency bin. Generally requires
         ``n_experiments > 1``, though ``n_experiments * nu > 1`` is sufficient
         when subexperiments are independent. With a noiseless input, it can be
