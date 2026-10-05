@@ -80,13 +80,14 @@ NOISY_INPUT_CONTRACTS: Mapping[ContractType, SignalContract] = {
 }
 
 
-def known_input(
+def known_input(  # noqa: PLR0913
     u: RealArray,
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     *,
     independent_subexperiments: bool = False,
+    show_warnings: bool = True,
 ) -> NonparametricBLA:
     """Estimate the BLA from known-input and noisy-output data.
 
@@ -123,6 +124,9 @@ def known_input(
         each subexperiment and then averaged over subexperiments. This makes
         no independence assumption across subexperiments, but uses fewer
         independent samples and is therefore less statistically efficient.
+    show_warnings : bool, default=True
+        If False, suppress warnings emitted by this package about data quality,
+        unavailable covariance estimates, and discarded realizations.
 
     Returns
     -------
@@ -138,7 +142,13 @@ def known_input(
         Wiley-IEEE Press, ISBN 978-0-470-64037-1.
 
     """
-    u, y, fs, excited_bins = _prepare_arguments_known_input(u, y, fs, excited_bins)
+    u, y, fs, excited_bins = _prepare_arguments_known_input(
+        u,
+        y,
+        fs,
+        excited_bins,
+        show_warnings=show_warnings,
+    )
 
     G_bla = _compute_bla_known_input(u, y, excited_bins)
     spectra = _compute_spectra_known_input(
@@ -154,13 +164,14 @@ def known_input(
     return NonparametricBLA(G_bla, spectra, freq, experiment)
 
 
-def noisy_input(
+def noisy_input(  # noqa: PLR0913
     u: RealArray,
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     *,
     independent_subexperiments: bool = False,
+    show_warnings: bool = True,
 ) -> NonparametricBLA:
     """Estimate the BLA from noisy input-output data.
 
@@ -197,6 +208,9 @@ def noisy_input(
         each subexperiment and then averaged over subexperiments. This makes
         no independence assumption across subexperiments, but uses fewer
         independent samples and is therefore less statistically efficient.
+    show_warnings : bool, default=True
+        If False, suppress warnings emitted by this package about data quality,
+        unavailable covariance estimates, and discarded realizations.
 
     Returns
     -------
@@ -212,7 +226,13 @@ def noisy_input(
         Wiley-IEEE Press, ISBN 978-0-470-64037-1.
 
     """
-    u, y, fs, excited_bins = _prepare_arguments_noisy_input(u, y, fs, excited_bins)
+    u, y, fs, excited_bins = _prepare_arguments_noisy_input(
+        u,
+        y,
+        fs,
+        excited_bins,
+        show_warnings=show_warnings,
+    )
     G_bla, Z_noise_cov = _compute_bla_noisy_input(u, y, excited_bins)
 
     spectra = _compute_spectra_noisy_input(
@@ -234,9 +254,19 @@ def _prepare_arguments_known_input(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
+    *,
+    show_warnings: bool,
 ) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
     """Validate and resolve all arguments according to :func:`prepare_arguments`."""
-    return prepare_arguments(None, u, y, fs, excited_bins, KNOWN_INPUT_CONTRACTS)[1:]
+    return prepare_arguments(
+        None,
+        u,
+        y,
+        fs,
+        excited_bins,
+        KNOWN_INPUT_CONTRACTS,
+        show_warnings=show_warnings,
+    )[1:]
 
 
 def _prepare_arguments_noisy_input(
@@ -244,9 +274,19 @@ def _prepare_arguments_noisy_input(
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
+    *,
+    show_warnings: bool,
 ) -> tuple[TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
     """Validate and resolve all arguments according to :func:`prepare_arguments`."""
-    return prepare_arguments(None, u, y, fs, excited_bins, NOISY_INPUT_CONTRACTS)[1:]
+    return prepare_arguments(
+        None,
+        u,
+        y,
+        fs,
+        excited_bins,
+        NOISY_INPUT_CONTRACTS,
+        show_warnings=show_warnings,
+    )[1:]
 
 
 def _compute_bla_known_input(

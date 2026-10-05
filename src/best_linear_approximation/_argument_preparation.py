@@ -48,6 +48,8 @@ def prepare_arguments(
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
+    *,
+    show_warnings: bool = True,
 ) -> tuple[
     None,
     TimeDomainSignal,
@@ -65,6 +67,8 @@ def prepare_arguments(
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
+    *,
+    show_warnings: bool = True,
 ) -> tuple[
     TimeDomainSignal,
     TimeDomainSignal,
@@ -81,6 +85,8 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     fs: float,
     excited_bins: NDArray[np.int_] | float,
     contracts: Mapping[ContractType, SignalContract],
+    *,
+    show_warnings: bool = True,
 ) -> tuple[
     TimeDomainSignal | None,
     TimeDomainSignal,
@@ -92,9 +98,9 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
 
     Ensures the signals conform to a supported contract and transforms them into the
     canonical five-dimensional experiment layout, verifies the sampling frequency,
-    and resolves the excited bins. Warns when the data is insufficient to estimate the
-    noise or total covariance, and when adjacent output periods differ substantially
-    or excitation amplitudes change between realizations.
+    and resolves the excited bins. When ``show_warnings`` is true, warns when the
+    data is insufficient to estimate the noise or total covariance, adjacent output
+    periods differ substantially, or excitation amplitudes change between realizations.
 
     If ``excited_bins`` is an array, it is validated directly. If it is a float, it is
     interpreted as a threshold for detecting the excited bins, using ``r`` if available
@@ -106,7 +112,7 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
     if contract_type is ContractType.REALIZATION:
         r = to_experiment_layout(r, nu, warn_on_truncation=False) if r is not None else None
         u = to_experiment_layout(u, nu, warn_on_truncation=False)
-        y = to_experiment_layout(y, nu)
+        y = to_experiment_layout(y, nu, warn_on_truncation=show_warnings)
     else:
         r = add_period_axis(r) if r is not None else None
         u = add_period_axis(u)
@@ -120,15 +126,15 @@ def prepare_arguments(  # noqa: PLR0913, PLR0917
 
     n_experiments, n_periods = y.shape[-2:]
 
-    if n_experiments == 1:
+    if show_warnings and n_experiments == 1:
         _warn_total_covariance_unavailable()
-    if n_periods == 1:
+    if show_warnings and n_periods == 1:
         _warn_noise_covariance_unavailable()
 
     max_bin = excited_bins[-1]
-    if n_experiments > 1:
+    if show_warnings and n_experiments > 1:
         _warn_if_excitation_amplitude_mismatch(r if r is not None else u, max_bin)
-    if n_periods > 1:
+    if show_warnings and n_periods > 1:
         _warn_if_output_spectra_mismatch(y, max_bin)
 
     return r, u, y, fs, excited_bins

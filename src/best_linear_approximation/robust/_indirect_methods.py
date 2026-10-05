@@ -82,6 +82,7 @@ def known_reference(  # noqa: PLR0913
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     *,
     independent_subexperiments: bool = False,
+    show_warnings: bool = True,
 ) -> NonparametricBLA:
     """Estimate a BLA using a known reference as an instrumental variable.
 
@@ -122,6 +123,9 @@ def known_reference(  # noqa: PLR0913
         each subexperiment and then averaged over subexperiments. This makes
         no independence assumption across subexperiments, but uses fewer
         independent samples and is therefore less statistically efficient.
+    show_warnings : bool, default=True
+        If False, suppress warnings emitted by this package about data quality,
+        unavailable covariance estimates, and discarded realizations.
 
     Returns
     -------
@@ -130,25 +134,16 @@ def known_reference(  # noqa: PLR0913
         uncertainties, frequency metadata, and experiment metadata.
 
     """
-    r, u, y, fs, excited_bins = _prepare_arguments_indirect(r, u, y, fs, excited_bins)
-    G_bla, Z_noise_cov = _compute_bla_indirect(r, u, y, excited_bins)
-    spectra = _compute_spectra_indirect(
+    return _estimate_indirect(
         r,
         u,
         y,
-        G_bla.value,
-        Z_noise_cov,
+        fs,
         excited_bins,
+        EstimationMethod.ROBUST_INDIRECT_KNOWN_REFERENCE,
         independent_subexperiments=independent_subexperiments,
+        show_warnings=show_warnings,
     )
-    freq = create_frequency_info(u.shape[0], fs, excited_bins)
-    experiment = ExperimentInfo.from_signals(
-        EstimationMethod.ROBUST_INDIRECT,
-        u,
-        y,
-        r,
-    )
-    return NonparametricBLA(G_bla, spectra, freq, experiment)
 
 
 def closed_loop(  # noqa: PLR0913
@@ -159,6 +154,7 @@ def closed_loop(  # noqa: PLR0913
     excited_bins: NDArray[np.int_] | float = DEFAULT_RELATIVE_THRESHOLD_EXCITED_BINS,
     *,
     independent_subexperiments: bool = False,
+    show_warnings: bool = True,
 ) -> NonparametricBLA:
     """Estimate a closed-loop BLA using a known reference.
 
@@ -199,6 +195,9 @@ def closed_loop(  # noqa: PLR0913
         each subexperiment and then averaged over subexperiments. This makes
         no independence assumption across subexperiments, but uses fewer
         independent samples and is therefore less statistically efficient.
+    show_warnings : bool, default=True
+        If False, suppress warnings emitted by this package about data quality,
+        unavailable covariance estimates, and discarded realizations.
 
     Returns
     -------
@@ -207,25 +206,72 @@ def closed_loop(  # noqa: PLR0913
         uncertainties, frequency metadata, and experiment metadata.
 
     """
-    return known_reference(
+    return _estimate_indirect(
         r,
         u,
         y,
         fs,
         excited_bins,
+        EstimationMethod.ROBUST_INDIRECT_CLOSED_LOOP,
         independent_subexperiments=independent_subexperiments,
+        show_warnings=show_warnings,
     )
 
 
-def _prepare_arguments_indirect(
+def _estimate_indirect(  # noqa: PLR0913, PLR0917
     r: RealArray,
     u: RealArray,
     y: RealArray,
     fs: float,
     excited_bins: NDArray[np.int_] | float,
+    estimation_method: EstimationMethod,
+    *,
+    independent_subexperiments: bool,
+    show_warnings: bool,
+) -> NonparametricBLA:
+    """Estimate an indirect BLA using the specified estimation-method label."""
+    r, u, y, fs, excited_bins = _prepare_arguments_indirect(
+        r,
+        u,
+        y,
+        fs,
+        excited_bins,
+        show_warnings=show_warnings,
+    )
+    G_bla, Z_noise_cov = _compute_bla_indirect(r, u, y, excited_bins)
+    spectra = _compute_spectra_indirect(
+        r,
+        u,
+        y,
+        G_bla.value,
+        Z_noise_cov,
+        excited_bins,
+        independent_subexperiments=independent_subexperiments,
+    )
+    freq = create_frequency_info(u.shape[0], fs, excited_bins)
+    experiment = ExperimentInfo.from_signals(estimation_method, u, y, r)
+    return NonparametricBLA(G_bla, spectra, freq, experiment)
+
+
+def _prepare_arguments_indirect(  # noqa: PLR0913
+    r: RealArray,
+    u: RealArray,
+    y: RealArray,
+    fs: float,
+    excited_bins: NDArray[np.int_] | float,
+    *,
+    show_warnings: bool,
 ) -> tuple[TimeDomainSignal, TimeDomainSignal, TimeDomainSignal, SamplingFrequencyHz, ExcitedBins]:
     """Validate and resolve indirect-estimation arguments."""
-    return prepare_arguments(r, u, y, fs, excited_bins, INDIRECT_CONTRACTS)
+    return prepare_arguments(
+        r,
+        u,
+        y,
+        fs,
+        excited_bins,
+        INDIRECT_CONTRACTS,
+        show_warnings=show_warnings,
+    )
 
 
 def _compute_bla_indirect(
